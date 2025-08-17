@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../../../lib/prisma';
-import { getUserId } from '../../../_utils';
+import { prisma } from '../../../../lib/prisma';
+import { getUserId } from '../../_utils';
 
 export async function GET() {
   const userId = getUserId();
@@ -15,4 +15,3 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch progress' }, { status: 500 });
   }
 }
-

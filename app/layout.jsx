@@ -4,6 +4,7 @@ export const metadata = {
 };
 
 import "./globals.css";
+import Providers from './providers';
 
 export default function RootLayout({ children }) {
   return (
@@ -14,7 +15,7 @@ export default function RootLayout({ children }) {
         <link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap" rel="stylesheet" />
       </head>
       <body className="min-h-screen">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

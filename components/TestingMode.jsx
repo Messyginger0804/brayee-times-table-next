@@ -69,8 +69,19 @@ function TestingMode({ problems, level, onLevelUp, onReset, attemptSummaries = {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (userAnswer === '' || !/^\d+$/.test(String(userAnswer))) {
+      try {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Enter a number',
+          text: 'Please type a number before submitting.',
+          confirmButtonColor: '#a855f7',
+        });
+      } catch (_) {}
+      return;
+    }
     const currentProblem = problems[currentProblemIndex];
-    const isCorrect = parseInt(userAnswer) === currentProblem.answer;
+    const isCorrect = parseInt(userAnswer, 10) === currentProblem.answer;
 
     setIsFlipped(true);
     setTimeout(async () => {
@@ -216,7 +227,17 @@ function TestingMode({ problems, level, onLevelUp, onReset, attemptSummaries = {
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6">
-          <input type="number" value={userAnswer} onChange={(e) => setUserAnswer(e.target.value)} className="px-4 py-2 rounded border text-xl" placeholder="Type your answer" />
+          <input
+            type="number"
+            value={userAnswer}
+            onChange={(e) => setUserAnswer(e.target.value)}
+            className="px-4 py-2 rounded border text-xl"
+            placeholder="Type your answer"
+            required
+            min={0}
+            step={1}
+            inputMode="numeric"
+          />
           <button type="submit" className="ml-3 px-6 py-3 text-xl rounded-lg cursor-pointer bg-teal-400 text-white border-none hover:bg-teal-500">Submit</button>
         </form>
         <button onClick={onReset} className="mt-6 px-6 py-3 text-xl rounded-lg cursor-pointer bg-purple-400 text-white border-none hover:bg-purple-500">Back to Main Menu</button>
@@ -226,4 +247,3 @@ function TestingMode({ problems, level, onLevelUp, onReset, attemptSummaries = {
 }
 
 export default TestingMode;
-
