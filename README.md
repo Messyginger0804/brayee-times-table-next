@@ -55,3 +55,4 @@ Notes
 - Public assets (Braylee.jpg and GIFs) are copied under `public/`.
 - Tailwind and the "Gochi Hand" Google font are configured to match the original styling.
 
+# brayee-times-table-next
