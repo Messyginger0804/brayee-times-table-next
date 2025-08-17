@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Problem {
+  id        Int      @id @default(autoincrement())
+  problem   String
+  answer    Int
+  correct   Int      @default(0)
+  incorrect Int      @default(0)
+  mastered  Boolean  @default(false)
+  attempts  Attempt[]
+  userProblems UserProblem[]
+}
+
+model Attempt {
+  id         Int      @id @default(autoincrement())
+  problemId  Int
+  userId     Int?
+  isCorrect  Boolean
+  createdAt  DateTime @default(now())
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id])
+
+  @@index([problemId, createdAt])
+  @@index([userId, problemId, createdAt])
+}
+
+model UserProblem {
+  userId      Int
+  problemId   Int
+  everCorrect Boolean @default(false)
+  updatedAt   DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([userId, problemId])
+  @@index([userId, problemId])
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  pin       String?
+  image     String?
+  level     Int      @default(1)
+  createdAt DateTime @default(now())
+  tests     Test[]
+  attempts  Attempt[]
+  userProblems UserProblem[]
+}
+
+model Test {
+  id        Int      @id @default(autoincrement())
+  score     Int
+  createdAt DateTime @default(now())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+}
