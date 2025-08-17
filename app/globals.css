@@ -26,3 +26,98 @@
 /* Utility for 3D card backs (works like the Vite app) */
 .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 
+
+/* Level unlock notification styles */
+.level-unlock-popup {
+  border-radius: 20px !important;
+  box-shadow: 0 20px 60px rgba(107, 70, 193, 0.3) !important;
+  animation: levelUnlockPop 0.6s ease-out !important;
+}
+
+.level-unlock-title {
+  font-family: 'Gochi Hand', cursive !important;
+  background: linear-gradient(45deg, #6B46C1, #EC4899, #F59E0B) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+.level-unlock-confirm {
+  border-radius: 25px !important;
+  padding: 12px 30px !important;
+  font-size: 1.1rem !important;
+  font-weight: bold !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 4px 15px rgba(107, 70, 193, 0.3) !important;
+}
+
+.level-unlock-confirm:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 25px rgba(107, 70, 193, 0.4) !important;
+}
+
+.level-unlock-cancel {
+  border-radius: 25px !important;
+  padding: 12px 30px !important;
+  font-size: 1.1rem !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3) !important;
+}
+
+.level-unlock-cancel:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4) !important;
+}
+
+@keyframes levelUnlockPop {
+  0% {
+    transform: scale(0.3) rotate(-10deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05) rotate(2deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* Add sparkle effect for extra celebration */
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.sparkle-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.sparkle-effect::before,
+.sparkle-effect::after {
+  content: '✨';
+  position: absolute;
+  font-size: 1.2rem;
+  animation: sparkle 2s infinite;
+  pointer-events: none;
+}
+
+.sparkle-effect::before {
+  top: 10%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.sparkle-effect::after {
+  bottom: 10%;
+  right: 10%;
+  animation-delay: 1s;
+}
