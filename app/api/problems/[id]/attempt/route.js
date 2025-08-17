@@ -3,7 +3,7 @@ import { prisma } from '../../../../../lib/prisma';
 import { getUserId } from '../../../_utils';
 
 export async function POST(req, { params }) {
-  const userId = getUserId();
+  const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
   const problemId = parseInt(params.id, 10);
   if (!Number.isInteger(problemId)) return NextResponse.json({ error: 'Invalid problem id' }, { status: 400 });

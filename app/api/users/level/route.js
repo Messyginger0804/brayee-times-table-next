@@ -3,7 +3,7 @@ import { prisma } from '../../../../lib/prisma';
 import { getUserId } from '../../_utils';
 
 export async function POST(req) {
-  const userId = getUserId();
+  const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const next = parseInt(body?.level, 10);

@@ -7,13 +7,6 @@ export async function POST() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
-  const res = NextResponse.json({ ok: true, id: session.user.id });
-  res.cookies.set('userId', String(session.user.id), {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30,
-    path: '/',
-  });
-  return res;
+  return NextResponse.json({ ok: true, id: session.user.id });
 }
 

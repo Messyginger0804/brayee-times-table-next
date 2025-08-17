@@ -203,7 +203,7 @@ function AppInner() {
   }
   if (mode === 'practice') {
     return (
-      <PracticeMode problems={filteredProblems} level={user.level} onReset={resetGame}
+      <PracticeMode user={user} problems={filteredProblems} level={user.level} onReset={resetGame}
         attemptSummaries={attemptSummaries} setAttemptSummaries={setAttemptSummaries}
         userProgress={userProgress} setUserProgress={setUserProgress} />
     );

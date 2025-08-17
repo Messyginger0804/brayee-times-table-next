@@ -9,15 +9,7 @@ export async function POST(req) {
   }
   try {
     const user = await prisma.user.create({ data: { name, pin } });
-    const res = NextResponse.json({ id: user.id, name: user.name, level: user.level, image: user.image });
-    res.cookies.set('userId', String(user.id), {
-      httpOnly: true,
-      sameSite: 'lax',
-      // secure: true,
-      maxAge: 60 * 60 * 24 * 30,
-      path: '/',
-    });
-    return res;
+    return NextResponse.json({ id: user.id, name: user.name, level: user.level, image: user.image });
   } catch (error) {
     if (error.code === 'P2002') {
       return NextResponse.json({ error: 'Name already taken' }, { status: 400 });

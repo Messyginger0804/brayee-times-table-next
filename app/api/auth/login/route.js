@@ -11,14 +11,6 @@ export async function POST(req) {
   if (!user || user.pin !== pin) {
     return NextResponse.json({ error: 'Invalid name or PIN' }, { status: 401 });
   }
-  const res = NextResponse.json({ id: user.id, name: user.name, level: user.level, image: user.image });
-  res.cookies.set('userId', String(user.id), {
-    httpOnly: true,
-    sameSite: 'lax',
-    // secure: true,
-    maxAge: 60 * 60 * 24 * 30,
-    path: '/',
-  });
-  return res;
+  return NextResponse.json({ id: user.id, name: user.name, level: user.level, image: user.image });
 }
 

@@ -3,7 +3,7 @@ import { prisma } from '../../../../../../lib/prisma';
 import { getUserId } from '../../../../_utils';
 
 export async function GET(_req, { params }) {
-  const userId = getUserId();
+  const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
   const level = parseInt(params.level, 10);
   if (![1,2].includes(level)) return NextResponse.json({ error: 'Invalid level' }, { status: 400 });
