@@ -175,7 +175,25 @@ function AppInner() {
             </div>
           </div>
         </div>
-        <button onClick={async () => { try { await axios.post('/api/auth/logout', {}, { withCredentials: true }); } catch (_) {} await signOut({ redirect: false }); }} className="absolute bottom-4 left-4 px-6 py-2 text-lg rounded-lg cursor-pointer bg-red-500 text-white border-none hover:bg-red-600">Logout</button>
+        <button
+          onClick={async () => {
+            try { await axios.post('/api/auth/logout', {}, { withCredentials: true }); } catch (_) {}
+            try {
+              await Swal.fire({
+                icon: 'info',
+                title: 'See you soon! ✨',
+                showConfirmButton: false,
+                timer: 1600,
+                confirmButtonColor: '#a855f7',
+                background: 'transparent',
+              });
+            } catch (_) {}
+            await signOut({ callbackUrl: '/login' });
+          }}
+          className="absolute bottom-4 left-4 px-6 py-2 text-lg rounded-lg cursor-pointer bg-red-500 text-white border-none hover:bg-red-600"
+        >
+          Logout
+        </button>
       </div>
     );
   }
