@@ -228,7 +228,7 @@ function PracticeMode({ user, problems, level, onReset, attemptSummaries = {}, s
               You have answered this right {last5.correctCount} out of the last {Math.min(5, last5.totalCount || 0)} times. {emoji.heart()}
             </div>
           )}
-          <div className="w-64 h-40 md:w-72 md:h-48 [perspective:1000px] cursor-pointer mb-4 md:mb-0 md:col-start-2 md:justify-self-center" onClick={handleCardClick}>
+          <div className="w-64 h-40 md:w-72 md:h-48 [perspective:1000px] cursor-pointer mb-4 md:mb-0 md:col-start-2 md:justify-self-center">
             <div className={`relative w-full h-full text-center transition-transform duration-500 [transform-style:preserve-3d] shadow-lg ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
               <div className="absolute w-full h-full backface-hidden flex items-center justify-center text-3xl md:text-4xl rounded-lg bg-teal-300 text-white">
                 <p>{currentCard.problem}</p>

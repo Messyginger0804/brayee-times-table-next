@@ -4,7 +4,7 @@ import LevelIndicator from './LevelIndicator';
 import Header from './Header';
 import { emoji } from '../lib/emoji';
 
-function MemorizeMode({ problems, level, onReset }) {
+function MemorizeMode({ user, problems, level, onReset }) {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
 
@@ -17,7 +17,7 @@ function MemorizeMode({ problems, level, onReset }) {
   if (problems.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 relative">
-        <Header onReset={onReset} />
+        <Header onReset={onReset} userName={user?.name} userImage={user?.image} />
         <div className="flex flex-col items-center justify-center text-center p-8">
           <h1 className="text-4xl md:text-6xl font-gochi-hand text-pink-500 mb-4">No Problems Yet</h1>
           <p className="text-lg text-gray-700 mb-6">There aren’t any problems available for this level right now.</p>
@@ -31,7 +31,7 @@ function MemorizeMode({ problems, level, onReset }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-green-100 relative">
-      <Header onReset={onReset} />
+      <Header onReset={onReset} userName={user?.name} userImage={user?.image} />
       <div className="flex flex-col items-center justify-center text-center p-4">
         <LevelIndicator level={level} />
         <h1 className="text-4xl md:text-6xl font-gochi-hand text-pink-500 mb-8">Memorize Mode 🧠💖</h1>

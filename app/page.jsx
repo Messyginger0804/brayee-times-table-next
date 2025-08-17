@@ -199,7 +199,7 @@ function AppInner() {
   }
 
   if (mode === 'memorize') {
-    return <MemorizeMode problems={filteredProblems} level={user.level} onReset={resetGame} />;
+    return <MemorizeMode user={user} problems={filteredProblems} level={user.level} onReset={resetGame} />;
   }
   if (mode === 'practice') {
     return (
@@ -210,7 +210,7 @@ function AppInner() {
   }
   if (mode === 'testing') {
     return (
-      <TestingMode problems={filteredProblems} level={user.level} onLevelUp={handleLevelUp} onReset={resetGame}
+      <TestingMode user={user} problems={filteredProblems} level={user.level} onLevelUp={handleLevelUp} onReset={resetGame}
         attemptSummaries={attemptSummaries} setAttemptSummaries={setAttemptSummaries} userProgress={userProgress} />
     );
   }
