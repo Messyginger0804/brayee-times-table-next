@@ -1,0 +1,326 @@
+[
+  {
+    "word": "deep",
+    "partOfSpeech": "adjective",
+    "definition": "extending downward to a considerable degree",
+    "sentence": "The lake was so deep that we could not see the bottom."
+  },
+  {
+    "word": "happy",
+    "partOfSpeech": "adjective",
+    "definition": "having the feeling arising from the consciousness of well-being",
+    "sentence": "She felt happy when she saw her friends at the party."
+  },
+  {
+    "word": "bump",
+    "partOfSpeech": "verb",
+    "definition": "to hit or knock typically with a degree of force or violence",
+    "sentence": "I might bump into the table if I’m not careful."
+  },
+  {
+    "word": "bear",
+    "partOfSpeech": "noun",
+    "definition": "an animal with long shaggy hair, feeding on fruit, insects, and flesh",
+    "sentence": "We saw a bear walking through the forest."
+  },
+  {
+    "word": "count",
+    "partOfSpeech": "verb",
+    "definition": "to separate one by one to find the total number of units",
+    "sentence": "Let’s count the apples in the basket."
+  },
+  {
+    "word": "dunk",
+    "partOfSpeech": "verb",
+    "definition": "to dip something into liquid while eating",
+    "sentence": "I like to dunk my cookies in milk."
+  },
+  {
+    "word": "feet",
+    "partOfSpeech": "plural noun",
+    "definition": "the terminal parts of the vertebrate legs upon which an individual stands",
+    "sentence": "Her feet were sore after walking all day."
+  },
+  {
+    "word": "cold",
+    "partOfSpeech": "adjective",
+    "definition": "having a temperature notably below that compatible with human comfort",
+    "sentence": "It was so cold outside that we wore our coats."
+  },
+  {
+    "word": "alone",
+    "partOfSpeech": "adjective",
+    "definition": "away from other people or things",
+    "sentence": "He sat alone on the park bench."
+  },
+  {
+    "word": "click",
+    "partOfSpeech": "verb",
+    "definition": "to select something on a computer by pressing a button on your mouse",
+    "sentence": "Click the link to open the website."
+  },
+  {
+    "word": "miss",
+    "partOfSpeech": "verb",
+    "definition": "to feel the lack of; to be unhappy because of loss or absence",
+    "sentence": "I miss my family when they are away."
+  },
+  {
+    "word": "shirt",
+    "partOfSpeech": "noun",
+    "definition": "a loose cloth garment usually having a collar, sleeves, and a front opening",
+    "sentence": "He wore a blue shirt to school."
+  },
+  {
+    "word": "roof",
+    "partOfSpeech": "noun",
+    "definition": "the outside cover on top of a building or home",
+    "sentence": "Rain fell hard on the roof during the storm."
+  },
+  {
+    "word": "here",
+    "partOfSpeech": "adverb",
+    "definition": "at this point in space; in this location",
+    "sentence": "Please come and sit here next to me."
+  },
+  {
+    "word": "lamp",
+    "partOfSpeech": "noun",
+    "definition": "a light-giving device",
+    "sentence": "She turned on the lamp to read her book."
+  },
+  {
+    "word": "lost",
+    "partOfSpeech": "adjective",
+    "definition": "gone out of one’s possession or control; put in an unremembered place",
+    "sentence": "I lost my keys in the car."
+  },
+  {
+    "word": "lunch",
+    "partOfSpeech": "noun",
+    "definition": "the meal that is eaten in the middle of the day",
+    "sentence": "We ate sandwiches for lunch."
+  },
+  {
+    "word": "drift",
+    "partOfSpeech": "verb",
+    "definition": "to become driven or carried along by a current of water, wind, or air",
+    "sentence": "The boat began to drift across the lake."
+  },
+  {
+    "word": "please",
+    "partOfSpeech": "adverb",
+    "definition": "used as a function word to express politeness or emphasis in a request",
+    "sentence": "Please pass me the salt."
+  },
+  {
+    "word": "spill",
+    "partOfSpeech": "verb",
+    "definition": "to cause or allow to pour, splash, or fall out of a container",
+    "sentence": "Don’t spill juice on the carpet."
+  },
+  {
+    "word": "tired",
+    "partOfSpeech": "adjective",
+    "definition": "drained of strength and energy; fatigued",
+    "sentence": "I felt tired after running."
+  },
+  {
+    "word": "large",
+    "partOfSpeech": "adjective",
+    "definition": "big",
+    "sentence": "They live in a large house."
+  },
+  {
+    "word": "lake",
+    "partOfSpeech": "noun",
+    "definition": "a large body of water surrounded by land",
+    "sentence": "We went swimming in the lake."
+  },
+  {
+    "word": "grab",
+    "partOfSpeech": "verb",
+    "definition": "to take hold of especially suddenly or forcibly; to grasp",
+    "sentence": "He tried to grab the ball before it rolled away."
+  },
+  {
+    "word": "juice",
+    "partOfSpeech": "noun",
+    "definition": "the extractable fluid contents of plant cells or structures",
+    "sentence": "I drank orange juice for breakfast."
+  },
+  {
+    "word": "nook",
+    "partOfSpeech": "noun",
+    "definition": "a secluded or out-of-the-way place or part",
+    "sentence": "She read her book in a cozy nook."
+  },
+  {
+    "word": "shops",
+    "partOfSpeech": "verb",
+    "definition": "examines goods and services with intent to buy",
+    "sentence": "She shops for clothes on weekends."
+  },
+  {
+    "word": "world",
+    "partOfSpeech": "noun",
+    "definition": "the earth with all its inhabitants and all things upon it",
+    "sentence": "The world is full of interesting places."
+  },
+  {
+    "word": "math",
+    "partOfSpeech": "noun",
+    "definition": "a science that deals with the relationship and symbolism of numbers",
+    "sentence": "She enjoys learning math at school."
+  },
+  {
+    "word": "pick",
+    "partOfSpeech": "verb",
+    "definition": "to select from among a group",
+    "sentence": "Pick your favorite color."
+  },
+  {
+    "word": "soap",
+    "partOfSpeech": "noun",
+    "definition": "a cleansing agent used for washing something",
+    "sentence": "He washed his hands with soap."
+  },
+  {
+    "word": "tools",
+    "partOfSpeech": "plural noun",
+    "definition": "instruments used or worked by hand",
+    "sentence": "The mechanic used tools to fix the car."
+  },
+  {
+    "word": "green",
+    "partOfSpeech": "adjective",
+    "definition": "being the color of grass or emeralds",
+    "sentence": "The grass was bright green."
+  },
+  {
+    "word": "muddy",
+    "partOfSpeech": "adjective",
+    "definition": "covered with a slimy sticky mixture of water and soil",
+    "sentence": "His shoes were muddy after the rain."
+  },
+  {
+    "word": "ripe",
+    "partOfSpeech": "adjective",
+    "definition": "fully developed and usable as food (used of fruit)",
+    "sentence": "The banana was ripe and sweet."
+  },
+  {
+    "word": "sign",
+    "partOfSpeech": "noun",
+    "definition": "a board on a building that tells the name and type of a business",
+    "sentence": "The store hung a new sign out front."
+  },
+  {
+    "word": "soup",
+    "partOfSpeech": "noun",
+    "definition": "a liquid food made with broth containing pieces of meat, fish, pasta, or vegetables",
+    "sentence": "We ate chicken noodle soup for dinner."
+  },
+  {
+    "word": "warm",
+    "partOfSpeech": "adjective",
+    "definition": "sending or giving out heat to a comfortable degree",
+    "sentence": "The blanket kept me warm at night."
+  },
+  {
+    "word": "fresh",
+    "partOfSpeech": "adjective",
+    "definition": "newly produced, gathered, or made",
+    "sentence": "She picked fresh flowers from the garden."
+  },
+  {
+    "word": "learn",
+    "partOfSpeech": "verb",
+    "definition": "to gain knowledge or understanding of a skill by study or experience",
+    "sentence": "I want to learn how to play piano."
+  },
+  {
+    "word": "frosty",
+    "partOfSpeech": "adjective",
+    "definition": "cold, freezing",
+    "sentence": "The window was frosty in the morning."
+  },
+  {
+    "word": "crisp",
+    "partOfSpeech": "adjective",
+    "definition": "easily broken, cracked, or snapped",
+    "sentence": "The apple was crisp and tasty."
+  },
+  {
+    "word": "shape",
+    "partOfSpeech": "noun",
+    "definition": "the visible makeup or form of an item",
+    "sentence": "The cloud had the shape of a heart."
+  },
+  {
+    "word": "splash",
+    "partOfSpeech": "verb",
+    "definition": "to cause a liquid to spatter or toss about with force",
+    "sentence": "The kids splash water in the pool."
+  },
+  {
+    "word": "mushy",
+    "partOfSpeech": "adjective",
+    "definition": "soft, spongy",
+    "sentence": "The strawberries turned mushy after sitting out."
+  },
+  {
+    "word": "group",
+    "partOfSpeech": "noun",
+    "definition": "a relatively small number of individuals assembled or standing together",
+    "sentence": "Our group went to the zoo together."
+  },
+  {
+    "word": "spine",
+    "partOfSpeech": "noun",
+    "definition": "the backbone of a book",
+    "sentence": "The book’s spine was cracked."
+  },
+  {
+    "word": "straps",
+    "partOfSpeech": "verb",
+    "definition": "secures with a narrow strip of flexible material",
+    "sentence": "He straps his helmet before riding his bike."
+  },
+  {
+    "word": "feast",
+    "partOfSpeech": "noun",
+    "definition": "an elaborate meal; a banquet",
+    "sentence": "They prepared a feast for Thanksgiving."
+  },
+  {
+    "word": "eagle",
+    "partOfSpeech": "noun",
+    "definition": "a large bird of prey noted for its strength and vision",
+    "sentence": "An eagle soared high above the mountains."
+  },
+  {
+    "word": "berries",
+    "partOfSpeech": "plural noun",
+    "definition": "pulpy and usually edible fruits of small size",
+    "sentence": "We picked berries from the bushes."
+  },
+  {
+    "word": "caves",
+    "partOfSpeech": "plural noun",
+    "definition": "hollowed-out chambers in the earth or cliffs",
+    "sentence": "The explorers entered the dark caves."
+  },
+  {
+    "word": "blanket",
+    "partOfSpeech": "noun",
+    "definition": "a piece of warm fabric used as a bed covering",
+    "sentence": "She wrapped herself in a blanket."
+  },
+  {
+    "word": "catch",
+    "partOfSpeech": "verb",
+    "definition": "to take hold of especially suddenly or forcibly; to grasp",
+    "sentence": "He tried to catch the ball in midair."
+  }
+]

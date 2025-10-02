@@ -162,6 +162,7 @@ function AppInner() {
           <div className="flex flex-col md:flex-row items-center md:items-start">
             <button onClick={() => setMode('memorize')} className="px-8 py-4 text-2xl rounded-lg cursor-pointer bg-pink-400 text-white border-none hover:bg-pink-500 mb-4 md:mb-0 md:mr-4">Memorize Mode 🧠💖</button>
             <button onClick={() => setMode('practice')} className="px-8 py-4 text-2xl rounded-lg cursor-pointer bg-teal-400 text-white border-none hover:bg-teal-500 mb-4 md:mb-0 md:mr-4">Practice Mode ✏️✨</button>
+            <a href="/spelling-bee" className="px-8 py-4 text-2xl rounded-lg cursor-pointer bg-yellow-400 text-white border-none hover:bg-yellow-500 mb-4 md:mb-0 md:mr-4">Spelling Bee 🐝</a>
             <div className="flex flex-col items-center">
               <button onClick={() => {
                 if (canUseTesting) setMode('testing');

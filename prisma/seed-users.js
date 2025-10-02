@@ -2,7 +2,7 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
-async function main() {
+export async function main() {
   await prisma.user.upsert({
     where: { name: 'Braylee' },
     update: { pin: '5106' },
@@ -13,14 +13,16 @@ async function main() {
     update: {},
     create: { name: 'Dad', pin: '0000' } 
   });
-  await prisma.user.upsert({ 
+  await prisma.user.upsert({
     where: { name: 'Mom' }, 
     update: {},
     create: { name: 'Mom', pin: '0000' } 
   });
+  await prisma.user.upsert({
+    where: { name: 'test' },
+    update: {},
+    create: { name: 'test', pin: '1234' },
+  });
   console.log('Users seeded');
 }
 
-main()
-  .catch((e) => { console.error(e); process.exit(1); })
-  .finally(async () => { await prisma.$disconnect(); });
