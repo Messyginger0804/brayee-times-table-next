@@ -7,17 +7,16 @@ import Header from './Header';
 import { getRandomCelebrateGif, getRandomUpsetGif } from '../lib/gifSelector';
 import { emoji } from '../lib/emoji';
 import { triggerFireworks } from '../lib/fireworks';
+import spellingWordsData from '../lib/spellingWords.json'; // Import the JSON data
 
 function SpellingBeeMode() {
   const { data: session, status } = useSession();
   const [user, setUser] = useState(null);
   const loading = status === 'loading';
 
-  const [word, setWord] = useState('');
+  const [currentWordData, setCurrentWordData] = useState(null); // Store the entire word object
   const [userAnswer, setUserAnswer] = useState('');
   const [feedback, setFeedback] = useState('');
-
-  const words = ["apple", "banana", "orange", "grape", "strawberry"]; // Hardcoded words for now
 
   // Load user details (level, image) when authenticated via NextAuth
   useEffect(() => {
@@ -51,12 +50,12 @@ function SpellingBeeMode() {
   }
 
   const pickWord = () => {
-    const randomIndex = Math.floor(Math.random() * words.length);
-    const newWord = words[randomIndex];
-    setWord(newWord);
+    const randomIndex = Math.floor(Math.random() * spellingWordsData.length);
+    const newWordData = spellingWordsData[randomIndex];
+    setCurrentWordData(newWordData);
     setFeedback('');
     setUserAnswer(''); // Clear previous answer
-    return newWord;
+    return newWordData.word;
   };
 
   const speakWord = (text) => {
@@ -65,14 +64,26 @@ function SpellingBeeMode() {
     speechSynthesis.speak(utterance);
   };
 
+  const speakSentence = () => {
+    if (currentWordData?.sentence) {
+      speakWord(currentWordData.sentence);
+    }
+  };
+
+  const getHiddenSentence = (sentence, word) => {
+    if (!sentence || !word) return '';
+    const regex = new RegExp(`\\b${word}\\b`, 'gi'); // Case-insensitive, whole word match
+    return sentence.replace(regex, '_____');
+  };
+
   const startRound = () => {
-    const newWord = pickWord();
-    speakWord(`Spell: ${newWord}`);
+    const wordToSpell = pickWord();
+    speakWord(`Spell: ${wordToSpell}`);
   };
 
   const repeatWord = () => {
-    if (word) {
-      speakWord(`Spell: ${word}`);
+    if (currentWordData) {
+      speakWord(`Spell: ${currentWordData.word}`);
     }
   };
 
@@ -88,7 +99,7 @@ function SpellingBeeMode() {
       return;
     }
 
-    const isCorrect = userAnswer.toLowerCase() === word.toLowerCase();
+    const isCorrect = userAnswer.toLowerCase() === currentWordData.word.toLowerCase();
 
     if (isCorrect) {
       setFeedback('Correct!');
@@ -104,10 +115,10 @@ function SpellingBeeMode() {
         background: 'transparent',
       });
     } else {
-      setFeedback(`Incorrect. The word was ${word}.`);
+      setFeedback(`Incorrect. The word was ${currentWordData.word}.`);
       await Swal.fire({
         title: `Incorrect ${emoji.encourage()}`,
-        text: `The correct spelling is ${word}. You got this! ${emoji.heart()}`,
+        text: `The correct spelling is ${currentWordData.word}. You got this! ${emoji.heart()}`,
         imageUrl: getRandomUpsetGif(),
         imageAlt: 'Try again',
         showConfirmButton: false,
@@ -124,7 +135,7 @@ function SpellingBeeMode() {
       <Header onReset={() => {}} userName={user?.name} userImage={user?.image} />
       <div className="flex flex-col items-center justify-center text-center p-4">
         <h1 className="text-4xl md:text-6xl font-gochi-hand text-green-700 mb-8">Spelling Bee 🐝</h1>
-        {!word && (
+        {!currentWordData && (
           <button
             onClick={startRound}
             className="px-8 py-4 text-2xl rounded-lg cursor-pointer bg-blue-500 text-white border-none hover:bg-blue-600 mb-4"
@@ -132,8 +143,19 @@ function SpellingBeeMode() {
             Start Round ▶🎤
           </button>
         )}
-        {word && (
+        {currentWordData && (
           <>
+            <div className="text-lg mb-4">
+              <p><span className="font-bold">Part of Speech:</span> {currentWordData.partOfSpeech}</p>
+              <p><span className="font-bold">Definition:</span> {currentWordData.definition}</p>
+              <p
+                className="cursor-pointer hover:text-blue-700 transition-colors duration-200"
+                onClick={speakSentence}
+                title="Click to hear the sentence"
+              >
+                <span className="font-bold">Sentence:</span> 🔊 {getHiddenSentence(currentWordData.sentence, currentWordData.word)}
+              </p>
+            </div>
             <form onSubmit={handleSubmit} className="flex flex-col items-center gap-4">
               <input
                 type="text"
