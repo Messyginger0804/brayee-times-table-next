@@ -1,7 +1,7 @@
 export default function manifest() {
   return {
-    name: 'Times Tables Mission Control',
-    short_name: 'Mission Control',
+    name: "Braylee's Mission Control",
+    short_name: 'Braylee',
     description: 'Times tables and spelling bee practice for kids',
     start_url: '/',
     display: 'standalone',
