@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24" # no engines/.nvmrc in repo; Node 24 LTS
+  FALLOW_VERSION: "3.14.0" # keep in sync with local `fallow --version`
+  FALLOW_TELEMETRY: "0"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci # postinstall runs `prisma generate` (no DB needed)
+      - run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run test:coverage
+      - name: Upload coverage (Istanbul JSON, consumed by fallow for real CRAP scores)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/coverage-final.json
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Build does not connect to the DB (prisma generate only reads the schema);
+    # dummy values below satisfy env() resolution. Real secrets are NOT needed.
+    # If a page ever queries Prisma at build time, move this to a job with a real DB.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      NEXTAUTH_SECRET: ci-dummy-secret
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'components/**', 'lib/**', 'config/**') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+      - run: npm ci
+      - run: npm run build # prisma generate && next build
+
+  fallow-static:
+    # No dependency on tests: dead-code and dupes need no coverage, so run in parallel.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install fallow (pinned)
+        run: npm install -g "fallow@${FALLOW_VERSION}"
+      - name: Dead code (full repo, fails on error-severity issues)
+        run: fallow dead-code --format github-annotations --fail-on-issues
+      - name: Duplication (fails if above threshold)
+        # Baseline ~1.9%; lower this as duplication drops.
+        run: fallow dupes --threshold 2 --format github-annotations
+
+  fallow-audit:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so `fallow audit --base` can diff
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install fallow (pinned)
+        run: npm install -g "fallow@${FALLOW_VERSION}"
+      - name: Download coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage
+      - name: Audit changed files (gates complexity, dead code, duplication - CRAP never fails)
+        if: github.event_name == 'pull_request'
+        # Default gate is new-only: pre-existing complexity hotspots do not block.
+        # CRAP is advisory: fallow has no "warn" severity for it, so --max-crap is set
+        # unreachably high (CRAP = CC^2 + CC at worst, far below 1e6). Real CRAP findings
+        # are reported by the non-gating step below.
+        # --coverage-root remaps the runner's absolute paths in coverage-final.json.
+        run: >
+          fallow audit --base "origin/${{ github.base_ref }}"
+          --coverage coverage/coverage-final.json --coverage-root "$GITHUB_WORKSPACE"
+          --max-crap 1000000 --format github-annotations
+      - name: CRAP hotspots (report only, never fails the job)
+        # Uses the default maxCrap (30) with real coverage; surfaced as annotations only.
+        continue-on-error: true
+        run: >
+          fallow health --coverage coverage/coverage-final.json --coverage-root "$GITHUB_WORKSPACE"
+          --max-crap 30 --format github-annotations || true

@@ -8,25 +8,25 @@ datasource db {
 }
 
 model Problem {
-  id        Int      @id @default(autoincrement())
-  problem   String
-  answer    Int
-  correct   Int      @default(0)
-  incorrect Int      @default(0)
-  mastered  Boolean  @default(false)
-  attempts  Attempt[]
+  id           Int           @id @default(autoincrement())
+  problem      String
+  answer       Int
+  correct      Int           @default(0)
+  incorrect    Int           @default(0)
+  mastered     Boolean       @default(false)
+  attempts     Attempt[]
   userProblems UserProblem[]
 }
 
 model Attempt {
-  id         Int      @id @default(autoincrement())
-  problemId  Int
-  userId     Int?
-  isCorrect  Boolean
-  createdAt  DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  problemId Int
+  userId    Int?
+  isCorrect Boolean
+  createdAt DateTime @default(now())
 
   problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  user    User?    @relation(fields: [userId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
 
   @@index([problemId, createdAt])
   @@index([userId, problemId, createdAt])
@@ -35,8 +35,10 @@ model Attempt {
 model UserProblem {
   userId      Int
   problemId   Int
-  everCorrect Boolean @default(false)
+  everCorrect Boolean  @default(false)
   updatedAt   DateTime @updatedAt
+  // Mastery rule (see lib/mastery.js): 3 correct in a row => true; any miss clears it.
+  mastered    Boolean  @default(false)
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
@@ -46,20 +48,37 @@ model UserProblem {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  pin       String?
-  image     String?
-  level     Int      @default(1)
-  createdAt DateTime @default(now())
-  tests     Test[]
-  attempts  Attempt[]
-  userProblems UserProblem[]
+  id                  Int                 @id @default(autoincrement())
+  name                String              @unique
+  pin                 String?
+  image               String?
+  level               Int                 @default(1)
+  createdAt           DateTime            @default(now())
+  // bcrypt hash of the 4-digit PIN (legacy rows may still hold a plaintext PIN until their next login)
+  // Login lockout: 5 failures => lockedUntil = now + 60s; reset on success.
+  failedLoginAttempts Int                 @default(0)
+  lockedUntil         DateTime?
+  // Unused since the parent screens were removed (kept: additive-only policy)
+  isAdmin             Boolean             @default(false)
+  // School grade 1-6 (null = not set). Chosen by the kid via PUT /api/me/grade; drives grade-aware spelling + math.
+  grade               Int?
+  // Guest seats (Guest 001-005): anonymous players, no PIN. Access is only via a random secret in an httpOnly cookie;
+  // guestTokenHash is its sha256. null hash = the seat is free. lastActiveAt drives the 7-day idle wipe (lib/guests.js).
+  isGuest             Boolean             @default(false)
+  guestSeat           Int?                @unique
+  guestTokenHash      String?             @unique
+  lastActiveAt        DateTime?
+  mathProgress        MathSkillProgress[]
+  mathAttempts        MathAttempt[]
+  spellingAttempts    SpellingAttempt[]
+  tests               Test[]
+  attempts            Attempt[]
+  userProblems        UserProblem[]
   // NextAuth optional fields
-  email           String?   @unique
-  emailVerified   DateTime?
-  accounts        Account[]
-  sessions        Session[]
+  email               String?             @unique
+  emailVerified       DateTime?
+  accounts            Account[]
+  sessions            Session[]
 }
 
 model Test {
@@ -103,4 +122,85 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model SpellingWord {
+  id           Int      @id @default(autoincrement())
+  word         String   @unique
+  definition   String
+  partOfSpeech String
+  sentence     String
+  difficulty   Int      @default(1)
+  category     String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  // Curriculum metadata (all nullable; legacy rows are filled by scripts/import-spelling.js)
+  grade        Int?
+  unitId       String?
+  tier         String? // core | hf | bee
+  syllables    Int?
+  source       String? // original | legacy
+
+  attempts SpellingAttempt[]
+
+  @@index([active])
+  @@index([category])
+  @@index([difficulty])
+  @@index([grade, tier])
+  @@index([grade, unitId])
+}
+
+model SpellingAttempt {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  wordId    Int
+  isCorrect Boolean
+  createdAt DateTime @default(now())
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word SpellingWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@index([userId, wordId])
+}
+
+// Per-kid progress for generated (non-Problem-row) math skills. skillId matches docs/curriculum/math.json.
+// Times-table skills that map onto Problem rows keep using UserProblem/Attempt, not this table.
+model MathSkillProgress {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  skillId    String
+  levelIndex Int       @default(0) // 0-based index into the skill's levels[]
+  // Last-N window for the CURRENT level: [{ c: boolean, ms: number }], oldest first, capped at 20
+  recent     Json      @default("[]")
+  attempts   Int       @default(0)
+  correct    Int       @default(0)
+  mastered   Boolean   @default(false)
+  masteredAt DateTime?
+  // Legacy: was set from the removed /parent screen. Kept (additive-only policy), no longer read or written.
+  unlockedByParent Boolean @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@index([userId])
+}
+
+model MathAttempt {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  skillId    String
+  levelIndex Int      @default(0)
+  prompt     String
+  expected   String
+  given      String
+  correct    Boolean
+  ms         Int
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, skillId, createdAt])
 }

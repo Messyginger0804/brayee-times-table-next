@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="0%" r="120%">
+      <stop offset="0" stop-color="#2a1a6e"/>
+      <stop offset="0.45" stop-color="#121a4a"/>
+      <stop offset="1" stop-color="#050816"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#cbc3ff"/>
+    </linearGradient>
+    <linearGradient id="visor" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2670"/>
+      <stop offset="0.5" stop-color="#0a1030"/>
+      <stop offset="1" stop-color="#050816"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+  <!--BG-->
+  <rect id="bg" width="512" height="512" rx="112" fill="url(#sky)"/>
+  <!--ART-->
+  <g id="art">
+    <!-- ear caps -->
+    <circle cx="66" cy="272" r="30" fill="#ff5fd7"/>
+    <circle cx="446" cy="272" r="30" fill="#ff5fd7"/>
+    <!-- helmet rim -->
+    <circle cx="256" cy="272" r="196" fill="url(#rim)"/>
+    <!-- visor -->
+    <rect x="96" y="132" width="320" height="280" rx="124" ry="124" fill="url(#visor)" stroke="#38f0ff" stroke-width="8"/>
+    <!-- B glow + B -->
+    <path d="M214 190 V354 M214 190 H268 a42 42 0 0 1 0 82 H214 M214 272 H280 a41 41 0 0 1 0 82 H214" fill="none" stroke="#38f0ff" stroke-width="44" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)" opacity="0.8" transform="translate(-9 0)"/>
+    <path d="M214 190 V354 M214 190 H268 a42 42 0 0 1 0 82 H214 M214 272 H280 a41 41 0 0 1 0 82 H214" fill="none" stroke="#38f0ff" stroke-width="36" stroke-linejoin="round" stroke-linecap="round" transform="translate(-9 0)"/>
+    <!-- sheen -->
+    <path d="M140 232 Q146 176 200 156" fill="none" stroke="#ffffff" stroke-opacity="0.75" stroke-width="16" stroke-linecap="round"/>
+    <!-- sparkle -->
+    <path d="M400 84 Q404 112 432 116 Q404 120 400 148 Q396 120 368 116 Q396 112 400 84Z" fill="#b6ff3b"/>
+  </g>
+</svg>

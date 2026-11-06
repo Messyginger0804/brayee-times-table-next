@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../../lib/prisma';
 import { getUserId } from '../../../../_utils';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_req, { params }) {
   const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
@@ -15,10 +17,11 @@ export async function GET(_req, { params }) {
       if (level === 1) return a <= 5 && b <= 5; return true;
     });
     const ids = levelProblems.map(p => p.id);
-    const done = await prisma.userProblem.findMany({ where: { userId, problemId: { in: ids }, everCorrect: true }, select: { problemId: true } });
+    const done = await prisma.userProblem.findMany({ where: { userId, problemId: { in: ids }, everCorrect: true }, select: { problemId: true, mastered: true } });
     const doneSet = new Set(done.map(d => d.problemId));
     const correctCount = doneSet.size; const total = ids.length;
-    return NextResponse.json({ level, total, correctCount, allCorrect: correctCount === total });
+    const masteredCount = done.filter(d => d.mastered).length;
+    return NextResponse.json({ level, total, correctCount, masteredCount, allCorrect: correctCount === total });
   } catch (_) {
     return NextResponse.json({ error: 'Failed to fetch level status' }, { status: 500 });
   }

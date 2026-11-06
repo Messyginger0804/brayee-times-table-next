@@ -2,10 +2,29 @@ Braylee's Times Tables — Next.js
 
 This is a Next.js port of the existing Vite + Express app in `../braylees_times_table`, preserving the same features:
 
-- Login/Register with 4-digit PIN (HttpOnly cookie session)
+- Braylee logs in with a 4-digit PIN; everyone else plays as an anonymous guest seat (no sign-ups)
 - Memorize, Practice, and Testing modes with playful UI
 - Per-user progress tracking and last-5 summaries
 - Prisma/Postgres data model identical to the original
+
+Local development (local only; never point at prod)
+
+- Postgres + prod-build app: `docker compose up -d --build` (db on localhost:55436, app on http://localhost:3200; both `restart: unless-stopped`). Stop: `docker compose down` (add `-v` ONLY to wipe the DB volume).
+- Dev server: `nohup npm run dev:local > /tmp/dev3300.log 2>&1 &` -> http://localhost:3300 (loads `.env.docker`, DB at localhost:55436). Stop: `pkill -f "[n]ext dev -p 3300"`. Needs the `db` container up.
+- Config is `.env.docker` (gitignored; `env.example` lists the keys). `GUEST_SEATS` (default 5) sets the number of guest seats; `CRON_SECRET` guards `/api/cron/purge-guests` (`curl -H "Authorization: Bearer $CRON_SECRET" localhost:3300/api/cron/purge-guests`; 401 without it).
+- Logins: `Braylee` (PIN is in `prisma/seed-users.js`) or "Play as Guest" (cookie-based seat, wiped after 7 idle days). `/gifs` is dev-only (404 on :3200).
+- Reset the local DB from the prod dump (`.backups/prod.dump`, real users' data: never commit or share). The dump is pg 18 format, so restore with a postgres:18 client:
+
+      docker compose up -d db
+      docker exec braylee-times-table-next-db-1 psql -U braylee -d postgres -c 'drop database braylee with (force)' -c 'create database braylee'   # container name may differ: `docker compose ps`
+      docker run --rm --network host -v "$PWD/.backups:/d:ro" -e PGPASSWORD=braylee_local postgres:18 pg_restore --no-owner --no-privileges -h localhost -p 55436 -U braylee -d braylee /d/prod.dump
+      export DATABASE_URL=postgresql://braylee:braylee_local@localhost:55436/braylee
+      npx prisma migrate resolve --applied 20260301000000_baseline_prod_schema
+      npm run db:migrate
+      npm run db:cleanup-accounts            # dry run; add -- --confirm to write
+
+- Tests: `npm test` (vitest), `npm run lint`, `npx tsc --noEmit`.
+- Deploying: see `docs/DEPLOY-RUNBOOK.md`.
 
 Getting Started
 
@@ -36,7 +55,7 @@ Getting Started
 API Overview
 
 - `POST /api/auth/login` — { name, pin }
-- `POST /api/auth/register` — { name, pin }
+- `POST /api/guest/claim` — { mode: 'resume' | 'new' }; `GET /api/guest/status`; `PUT /api/me/grade` — { grade }
 - `GET /api/auth/me` — current user
 - `POST /api/auth/logout`
 - `POST /api/users/level` — { level }

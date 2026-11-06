@@ -1,111 +1,55 @@
 "use client";
-import { useState } from 'react';
-import { signIn, signOut, useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import Swal from 'sweetalert2';
-import 'sweetalert2/dist/sweetalert2.min.css';
-import axios from 'axios';
+import { useSession } from 'next-auth/react';
+import { motion } from 'framer-motion';
+import Screen, { GlassCard } from '../../components/ui/Screen';
+import HostAstronaut from '../../components/game/HostAstronaut';
+import GuestButtons from './_components/GuestButtons';
+import CredentialsForm from './_components/CredentialsForm';
+import ShakeError from './_components/ShakeError';
+import SignedInCard from './_components/SignedInCard';
+import useLogin from './_components/useLogin';
 
 export default function LoginPage() {
   const { data: session } = useSession();
-  const router = useRouter();
-  const [name, setName] = useState('');
-  const [pin, setPin] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
+  const login = useLogin();
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Name required', confirmButtonColor: '#a855f7' });
-      return;
-    }
-    if (!/^\d{4}$/.test(String(pin))) {
-      Swal.fire({ icon: 'warning', title: 'PIN must be 4 digits', confirmButtonColor: '#a855f7' });
-      return;
-    }
-    setLoading(true);
-    try {
-      if (isRegistering) {
-        await axios.post('/api/auth/register', { name: name.trim(), pin }, { withCredentials: true });
-        await Swal.fire({
-          icon: 'success',
-          title: 'Account created ✨',
-          text: 'Signing you in…',
-          showConfirmButton: false,
-          timer: 1600,
-          confirmButtonColor: '#a855f7',
+  if (session?.user) return <SignedInCard />;
 
-        });
-      }
-      const res = await signIn('credentials', { name, pin, redirect: false });
-      if (res?.ok) {
-        await fetch('/api/auth/link-cookie', { method: 'POST' });
-        try {
-          await Swal.fire({
-            icon: 'success',
-            title: 'Welcome back! 🎉',
-            text: 'Signed in successfully',
-            showConfirmButton: false,
-            timer: 1800,
-            confirmButtonColor: '#a855f7',
-  
-          });
-        } catch (_) {}
-        router.push('/');
-      } else {
-        Swal.fire({ icon: 'error', title: isRegistering ? 'Signup failed' : 'Login failed', text: res?.error || 'Invalid credentials', confirmButtonColor: '#a855f7' });
-      }
-    } catch (err) {
-      const msg = err?.response?.data?.error || (isRegistering ? 'Could not create account' : 'Login failed');
-      Swal.fire({ icon: 'error', title: 'Oops…', text: msg, confirmButtonColor: '#a855f7' });
-    }
-    setLoading(false);
-  };
-
-  if (session?.user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 flex items-center justify-center p-4">
-        <div className="p-6 bg-white bg-opacity-50 rounded-lg shadow-lg max-w-sm w-full text-center">
-          
-          <button
-            className="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
-            onClick={async () => {
-              try {
-                await Swal.fire({
-                  icon: 'info',
-                  title: 'See you soon! 👋',
-                  showConfirmButton: false,
-                  timer: 1500,
-                  confirmButtonColor: '#a855f7',
-                  background: 'rgba(255, 255, 255, 0.5)',
-        
-                });
-              } catch (_) {}
-              await signOut({ callbackUrl: '/' });
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  const { error, showLogin, done } = login;
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 flex items-center justify-center p-4">
-      <form onSubmit={handleLogin} className="p-6 bg-white bg-opacity-50 rounded-lg shadow-lg max-w-sm w-full text-center">
-        <h1 className="text-4xl font-gochi-hand text-pink-500 mb-1">Welcome back! 💖</h1>
-        <p className="text-purple-700 mb-4">Type your name and PIN to continue.</p>
-        <input className="border rounded px-3 py-2 w-full mb-3" placeholder="Type your name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <input className="border rounded px-3 py-2 w-full mb-4" placeholder="Type your 4-digit PIN" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={4} inputMode="numeric" pattern="\d{4}" required />
-        <button disabled={loading} className="w-full px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-gochi-hand text-2xl mb-3">
-          {loading ? (isRegistering ? 'Creating…' : 'Signing in…') : (isRegistering ? 'Create Account ✨' : 'Start Game 🚀')}
-        </button>
-        <button type="button" className="text-sm text-purple-700 hover:underline" onClick={() => setIsRegistering(!isRegistering)}>
-          {isRegistering ? 'Already have an account? Login' : 'Create a new account'}
-        </button>
-      </form>
-    </div>
+    <Screen className="items-center justify-center">
+      <motion.div
+        initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+        className="w-full max-w-sm"
+      >
+        <div className="mb-4 text-center">
+          <HostAstronaut size={150} className="mb-3" />
+          <h1 className="text-hero text-neon-cyan text-glow">Times Tables Mission Control</h1>
+          <p className="mt-1 text-lead text-ink-dim">Ready for blast off?</p>
+        </div>
+
+        <GlassCard>
+          <div className="flex flex-col gap-3">
+            <GuestButtons resume={login.resume} loading={login.loading} onEnter={login.enterGuest} />
+
+            <div aria-live="polite" className="min-h-[1.5rem] text-center">
+              {!showLogin && <ShakeError error={error} />}
+              {done && <p className="text-body font-bold text-neon-lime">{done}</p>}
+            </div>
+
+            {showLogin ? (
+              <CredentialsForm name={login.name} pin={login.pin} setName={login.setName} setPin={login.setPin}
+                error={error} loading={login.loading} onSubmit={login.handleLogin} />
+            ) : (
+              <button type="button" className="min-h-[3rem] text-body text-neon-cyan underline underline-offset-4"
+                onClick={login.openLogin}>
+                Log in
+              </button>
+            )}
+          </div>
+        </GlassCard>
+      </motion.div>
+    </Screen>
   );
 }

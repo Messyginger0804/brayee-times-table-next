@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.vercel
+.env*
+!env.example
+*.log
+coverage
+docker-compose.yml
+.backups
+*.dump
+private

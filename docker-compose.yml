@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: braylee
+      POSTGRES_PASSWORD: braylee_local
+      POSTGRES_DB: braylee
+    ports:
+      - "55436:5432"
+    volumes:
+      - braylee_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U braylee -d braylee"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env.docker
+    ports:
+      - "3200:3000"
+    volumes:
+      # Private avatar photos stay out of the image; mounted read-only at runtime.
+      - ./private:/app/private:ro
+volumes:
+  braylee_pgdata:

@@ -4,3 +4,12 @@ node_modules
 coverage
 *.log
 
+.vercel
+.env*
+!env.example
+
+private/
+next-env.d.ts
+*.tsbuildinfo
+*.dump
+.backups/

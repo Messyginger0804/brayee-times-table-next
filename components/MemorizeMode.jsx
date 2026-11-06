@@ -1,55 +1,71 @@
 "use client";
 import { useState } from 'react';
-import LevelIndicator from './LevelIndicator';
+import { AnimatePresence, motion } from 'framer-motion';
 import Header from './Header';
+import Screen from './ui/Screen';
+import Button from './ui/Button';
+import LevelIndicator from './LevelIndicator';
+import NoProblemsScreen from './modes/drill/NoProblemsScreen';
 import { emoji } from '../lib/emoji';
 
+const prettyProblem = (p) => String(p).replace(/\s*x\s*/i, ' × ');
+
 function MemorizeMode({ user, problems, level, onReset }) {
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
 
-  const handleCardClick = () => setIsFlipped(!isFlipped);
-  const handleNextCard = () => {
-    setIsFlipped(false);
-    setCurrentCardIndex((currentCardIndex + 1) % problems.length);
-  };
+  const next = () => { setFlipped(false); setIndex((i) => (i + 1) % problems.length); };
 
-  if (problems.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 relative">
-        <Header onReset={onReset} userName={user?.name} userImage={user?.image} />
-        <div className="flex flex-col items-center justify-center text-center p-8">
-          <h1 className="text-4xl md:text-6xl font-gochi-hand text-pink-500 mb-4">No Problems Yet</h1>
-          <p className="text-lg text-gray-700 mb-6">There aren’t any problems available for this level right now.</p>
-          <button onClick={onReset} className="px-6 py-3 md:px-8 md:py-4 text-xl md:text-2xl rounded-lg cursor-pointer bg-purple-400 text-white border-none hover:bg-purple-500">Back to Main Menu</button>
-        </div>
-      </div>
-    );
-  }
+  if (problems.length === 0) return <NoProblemsScreen user={user} onReset={onReset} />;
 
-  const currentCard = problems[currentCardIndex];
+  const card = problems[index];
+  const face = 'absolute inset-0 flex flex-col items-center justify-center rounded-bubble border-2 [backface-visibility:hidden]';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-100 to-green-100 relative">
+    <Screen>
       <Header onReset={onReset} userName={user?.name} userImage={user?.image} />
-      <div className="flex flex-col items-center justify-center text-center p-4">
+      <div className="flex flex-col items-center gap-1 pt-1">
+        <h1 className="text-title text-neon-pink">Memorize 🧠</h1>
         <LevelIndicator level={level} />
-        <h1 className="text-4xl md:text-6xl font-gochi-hand text-pink-500 mb-8">Memorize Mode 🧠💖</h1>
-        <div className="w-64 h-40 md:w-72 md:h-48 [perspective:1000px] cursor-pointer mb-8" onClick={handleCardClick}>
-          <div className={`relative w-full h-full text-center transition-transform duration-500 [transform-style:preserve-3d] shadow-lg ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
-            <div className="absolute w-full h-full backface-hidden flex items-center justify-center text-3xl md:text-4xl rounded-lg bg-teal-300 text-white">
-              <p>{currentCard.problem}</p>
-            </div>
-            <div className="absolute w-full h-full backface-hidden flex items-center justify-center text-3xl md:text-4xl rounded-lg bg-green-500 text-white [transform:rotateY(180deg)]">
-              <p>{currentCard.answer}</p>
-            </div>
-          </div>
-        </div>
-        <button onClick={handleNextCard} className="px-6 py-3 md:px-8 md:py-4 text-xl md:text-2xl rounded-lg cursor-pointer bg-purple-400 text-white border-none hover:bg-purple-500 mb-4">Next {emoji.next()}</button>
+        <p className="text-body text-ink-dim">Card {index + 1} of {problems.length}</p>
       </div>
-    </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 pt-4">
+        <div className="[perspective:1000px]">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.button
+              key={card.id}
+              type="button"
+              onClick={() => setFlipped((f) => !f)}
+              aria-label={flipped ? `${prettyProblem(card.problem)} equals ${card.answer}. Tap to flip back.` : `${prettyProblem(card.problem)}. Tap to reveal the answer.`}
+              initial={{ x: 60, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -60, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="relative block h-56 w-[min(20rem,86vw)]"
+            >
+              <motion.div
+                className="absolute inset-0 [transform-style:preserve-3d]"
+                animate={{ rotateY: flipped ? 180 : 0 }}
+                transition={{ type: 'spring', stiffness: 220, damping: 22 }}
+              >
+                <div className={`${face} border-neon-cyan bg-space-800/90 shadow-glow-cyan`}>
+                  <span className="text-jumbo">{prettyProblem(card.problem)}</span>
+                  <span className="mt-2 text-body text-ink-dim">Tap to flip 👆</span>
+                </div>
+                <div className={`${face} border-neon-lime bg-space-800/90 shadow-glow-lime [transform:rotateY(180deg)]`}>
+                  <span className="text-body text-ink-dim">{prettyProblem(card.problem)} =</span>
+                  <span className="text-jumbo text-neon-lime text-glow">{card.answer}</span>
+                </div>
+              </motion.div>
+            </motion.button>
+          </AnimatePresence>
+        </div>
+      </div>
+      <div className="flex justify-center pt-4">
+        <Button tone="violet" size="lg" onClick={next} className="w-full max-w-xs">Next {emoji.next()}</Button>
+      </div>
+    </Screen>
   );
 }
 
 export default MemorizeMode;
-

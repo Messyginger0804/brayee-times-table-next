@@ -1,22 +1,25 @@
 "use client";
-import { emoji } from '../lib/emoji';
+import Button from './ui/Button';
+import AstronautHelmet from './space/AstronautHelmet';
 
-function Header({ onReset, userName, userImage }) {
+/** Top bar: avatar + greeting on the left, menu action on the right. */
+function Header({ onReset, userName, menuLabel = 'Menu' }) {
   return (
-    <header className="w-full p-4 bg-white bg-opacity-50 shadow-md flex items-center justify-between">
-      <div className="flex items-center">
-        {userImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={userImage} alt={`${userName}'s Avatar`} className="w-12 h-12 md:w-16 md:h-16 rounded-full mr-4" />
-        ) : (
-          <div className="w-12 h-12 md:w-16 md:h-16 rounded-full mr-4 bg-gray-300"></div>
-        )}
-        <h1 className="text-lg md:text-2xl font-gochi-hand text-pink-500">Hey {userName}, love that you are learning! 🦄 {emoji.heart()}</h1>
+    <header className="flex w-full items-center justify-between gap-2 py-2">
+      <div className="flex min-w-0 items-center gap-3">
+        <AstronautHelmet size={52} float={false} />
+        <p className="truncate text-lead font-bold">
+          <span className="text-ink-dim">Cadet </span>
+          <span className="text-neon-cyan">{userName}</span>
+        </p>
       </div>
-      <button onClick={onReset} className="px-4 py-2 text-sm md:text-base rounded-lg cursor-pointer bg-purple-400 text-white border-none hover:bg-purple-500">Main Menu  🏠</button>
+      <div className="flex shrink-0 items-center gap-2">
+        <Button tone="ghost" size="sm" onClick={onReset} aria-label="Back to main menu">
+          <span aria-hidden="true">🏠</span> {menuLabel}
+        </Button>
+      </div>
     </header>
   );
 }
 
 export default Header;
-

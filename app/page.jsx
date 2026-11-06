@@ -1,221 +1,95 @@
 "use client";
-import { useEffect, useState } from 'react';
-import Swal from 'sweetalert2';
-import 'sweetalert2/dist/sweetalert2.min.css';
-import axios from 'axios';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import MemorizeMode from '../components/MemorizeMode';
 import PracticeMode from '../components/PracticeMode';
 import TestingMode from '../components/TestingMode';
-import LevelIndicator from '../components/LevelIndicator';
-import Header from '../components/Header';
+import { CenterScreen, SignInCard } from '../components/modes/shared/GateViews';
+import { GradeGate, MenuScreen } from '../components/modes/shared/HomeMenu';
+import { useAuthUser } from '../components/modes/shared/useAuthUser';
+import { useLevelUp } from '../components/modes/shared/useLevelUp';
+import { useHomeData } from '../components/modes/shared/useHomeData';
+import { makePickMission, testingStats } from '../components/modes/shared/homeLogic';
+import { AnimatePresence, motion } from 'framer-motion';
+
+function LoadingView({ loading }) {
+  return (
+    <CenterScreen>
+      <motion.div aria-hidden="true" className="text-jumbo" animate={{ y: [0, -14, 0] }} transition={{ duration: 1.2, repeat: Infinity }}>🚀</motion.div>
+      <p role="status" className="text-title text-neon-cyan">{loading ? 'Loading…' : 'Loading problems…'}</p>
+    </CenterScreen>
+  );
+}
+
+// Game screens keyed by mode; the player's data and callbacks arrive in one context object.
+const MODE_VIEWS = {
+  memorize: ({ user, scopedSkill, filteredProblems, resetGame }) => (
+    <MemorizeMode key={`memorize-${scopedSkill || ''}`} user={user} problems={filteredProblems} level={user.level} onReset={resetGame} />
+  ),
+  practice: ({ user, scopedSkill, filteredProblems, resetGame, data }) => (
+    <PracticeMode key={`practice-${scopedSkill || ''}`} scoped={!!scopedSkill} user={user} problems={filteredProblems} level={user.level} onReset={resetGame}
+      attemptSummaries={data.attemptSummaries} setAttemptSummaries={data.setAttemptSummaries}
+      userProgress={data.userProgress} setUserProgress={data.setUserProgress} />
+  ),
+  testing: ({ user, filteredProblems, resetGame, handleLevelUp, data }) => (
+    <TestingMode key="testing" user={user} problems={filteredProblems} level={user.level} onLevelUp={handleLevelUp} onReset={resetGame}
+      attemptSummaries={data.attemptSummaries} setAttemptSummaries={data.setAttemptSummaries} userProgress={data.userProgress} />
+  ),
+};
+
+function pickContent(mode, ctx, ui, actions) {
+  const { user, data } = ctx;
+  const modeView = MODE_VIEWS[mode];
+  if (modeView) return modeView(ctx);
+  if (data.curr && !data.curr.grade) return <GradeGate key="grade" onPicked={() => actions.fetchMissions()} />;
+  return <MenuScreen key="menu" user={user} curr={data.curr} stats={testingStats(ctx.filteredProblems, data.userProgress)} ui={ui} actions={actions} />;
+}
 
 function AppInner() {
-  const { data: session, status } = useSession();
-  const [user, setUser] = useState(null);
+  const { status } = useSession();
+  const [user, setUser] = useAuthUser(status);
   const loading = status === 'loading';
   const [mode, setMode] = useState(null);
-  const [problems, setProblems] = useState([]);
-  const [filteredProblems, setFilteredProblems] = useState([]);
-  const [problemsLoading, setProblemsLoading] = useState(true);
-  const [attemptSummaries, setAttemptSummaries] = useState({});
-  const [userProgress, setUserProgress] = useState({});
+  const [lockedOpen, setLockedOpen] = useState(false);
+  const [gradeOpen, setGradeOpen] = useState(false); // grade chooser from the menu
+  const router = useRouter();
+  const [scopedSkill, setScopedSkill] = useState(null); // times-table mission being practised (filters the problem list)
+  const [pickedSkill, setPickedSkill] = useState(null); // mission tapped on the map (for the chooser / locked dialogs)
+  const data = useHomeData(user, scopedSkill);
+  const { filteredProblems, problemsLoading, fetchProblems, fetchMissions } = data;
 
-  // Load user details (level, image) when authenticated via NextAuth
-  useEffect(() => {
-    if (status === 'authenticated') {
-      axios.get('/api/auth/me', { withCredentials: true })
-        .then((r) => setUser(r.data || null))
-        .catch(() => setUser(null));
-    } else if (status === 'unauthenticated') {
-      setUser(null);
-    }
-  }, [status]);
+  const handleLevelUp = useLevelUp({ user, setUser, setMode, fetchProblems });
 
-  const shuffleArray = (array) => {
-    const newArray = [...array];
-    let currentIndex = newArray.length, randomIndex;
-    while (currentIndex !== 0) {
-      randomIndex = Math.floor(Math.random() * currentIndex);
-      currentIndex--;
-      [newArray[currentIndex], newArray[randomIndex]] = [newArray[randomIndex], newArray[currentIndex]];
-    }
-    return newArray;
-  };
-
-  const fetchProblems = () => {
-    setProblemsLoading(true);
-    axios.get('/api/problems')
-      .then(res => setProblems(res.data))
-      .catch(() => {})
-      .finally(() => setProblemsLoading(false));
-  };
-
-  const fetchAllAttemptSummaries = () => {
-    if (!user) return;
-    axios.get('/api/attempts/last5', { withCredentials: true })
-      .then(res => setAttemptSummaries(res.data?.summaries || {}))
-      .catch(() => setAttemptSummaries({}));
-  };
-
-  const fetchProgressSummary = () => {
-    if (!user) return;
-    axios.get('/api/progress/summary', { withCredentials: true })
-      .then(res => {
-        const ids = res.data?.problemIds || [];
-        const map = {}; ids.forEach(id => map[id] = true);
-        setUserProgress(map);
-      })
-      .catch(() => setUserProgress({}));
-  };
-
-  useEffect(() => {
-    if (user) {
-      fetchProblems();
-      fetchAllAttemptSummaries();
-      fetchProgressSummary();
-    } else {
-      setProblemsLoading(true);
-      setAttemptSummaries({});
-      setUserProgress({});
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    let currentLevelProblems = [];
-    if (user.level === 1) {
-      currentLevelProblems = problems.filter(p => {
-        const [a, b] = p.problem.split(' x ').map(Number);
-        return a <= 5 && b <= 5;
-      });
-    } else {
-      currentLevelProblems = problems;
-    }
-    setFilteredProblems(shuffleArray(currentLevelProblems));
-  }, [user, problems]);
-
-  const updateLevel = async (level) => {
-    const { data } = await axios.post('/api/users/level', { level }, { withCredentials: true });
-    setUser(prev => ({ ...(prev || {}), ...data }));
-    return data;
-  };
-
-  const handleLevelUp = async () => {
-    try {
-      if (user?.level === 1) await updateLevel(2);
-    } catch (_) {
-    } finally {
-      setMode(null);
-      fetchProblems();
-    }
-  };
+  const pickMission = makePickMission(router, setPickedSkill);
+  const startScoped = (m) => { setScopedSkill(pickedSkill.id); setPickedSkill(null); setMode(m); };
 
   const resetGame = () => {
     setMode(null);
-    if (user) {
-      fetchProblems();
-      fetchAllAttemptSummaries();
-      fetchProgressSummary();
-    }
+    setScopedSkill(null);
+    if (!user) return;
+    fetchMissions();
+    fetchProblems();
+    data.fetchAllAttemptSummaries();
+    data.fetchProgressSummary();
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 flex flex-col items-center justify-center p-4">
-        <h1 className="text-4xl font-gochi-hand text-white">Loading... 💖</h1>
-      </div>
-    );
-  }
-
+  if (loading || (user && problemsLoading)) return <LoadingView loading={loading} />;
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 flex flex-col items-center justify-center p-4">
-        <div className="p-6 bg-white bg-opacity-50 rounded-lg shadow-lg flex flex-col items-center gap-4 text-center">
-          <h1 className="text-4xl font-gochi-hand text-pink-500">Who’s playing? 💖</h1>
-          <p className="text-purple-700">Please sign in to start practicing.</p>
-          <a href="/login" className="px-6 py-3 rounded-lg bg-purple-500 text-white font-gochi-hand text-2xl hover:bg-purple-600">Go to Login</a>
-        </div>
-      </div>
+      <CenterScreen>
+        <SignInCard message="Please sign in to start practicing." />
+      </CenterScreen>
     );
   }
 
-  if (problemsLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 flex flex-col items-center justify-center p-4">
-        <h1 className="text-4xl font-gochi-hand text-white">Loading Problems... 💖</h1>
-      </div>
-    );
-  }
+  const ctx = { user, scopedSkill, filteredProblems, resetGame, handleLevelUp, data };
+  const ui = { gradeOpen, lockedOpen, pickedSkill, setGradeOpen, setLockedOpen, setPickedSkill };
+  const actions = { reset: resetGame, setMode, pickMission, startScoped, fetchMissions };
+  const content = pickContent(mode, ctx, ui, actions);
 
-  if (!mode) {
-    const totalCount = filteredProblems.length;
-    const completedCount = filteredProblems.filter(p => userProgress[p.id]).length;
-    const canUseTesting = totalCount > 0 && completedCount === totalCount;
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 relative">
-        <Header onReset={resetGame} userName={user.name} userImage={user.image} />
-        <div className="flex flex-col items-center justify-center text-center p-4">
-          <LevelIndicator level={user.level} />
-          <h1 className="text-4xl md:text-6xl font-gochi-hand text-pink-500 mb-8">Choose Your Mode ✨</h1>
-          <div className="flex flex-col md:flex-row items-center md:items-start">
-            <button onClick={() => setMode('memorize')} className="px-8 py-4 text-2xl rounded-lg cursor-pointer bg-pink-400 text-white border-none hover:bg-pink-500 mb-4 md:mb-0 md:mr-4">Memorize Mode 🧠💖</button>
-            <button onClick={() => setMode('practice')} className="px-8 py-4 text-2xl rounded-lg cursor-pointer bg-teal-400 text-white border-none hover:bg-teal-500 mb-4 md:mb-0 md:mr-4">Practice Mode ✏️✨</button>
-            <a href="/spelling-bee" className="px-8 py-4 text-2xl rounded-lg cursor-pointer bg-yellow-400 text-white border-none hover:bg-yellow-500 mb-4 md:mb-0 md:mr-4">Spelling Bee 🐝</a>
-            <div className="flex flex-col items-center">
-              <button onClick={() => {
-                if (canUseTesting) setMode('testing');
-                else Swal.fire({ icon: 'info', title: 'Keep Practicing ✨', text: 'Answer every problem in this level at least once in Practice Mode to unlock Testing Mode.', confirmButtonColor: '#a855f7' });
-              }} className={`px-8 py-4 text-2xl rounded-lg border-none mb-1 ${canUseTesting ? 'cursor-pointer bg-purple-400 text-white hover:bg-purple-500' : 'cursor-not-allowed bg-purple-300 text-white/70'}`}>
-                Testing Mode 🧪🌟
-              </button>
-              <div className="text-sm mt-1 text-purple-900/80 text-center">
-                {canUseTesting ? `All ${totalCount} completed — Testing unlocked!` : `Completed ${completedCount} / ${totalCount} to unlock Testing`}
-              </div>
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={async () => {
-            try { await axios.post('/api/auth/logout', {}, { withCredentials: true }); } catch (_) {}
-            try {
-              await Swal.fire({
-                icon: 'info',
-                title: 'See you soon! ✨',
-                showConfirmButton: false,
-                timer: 1600,
-                confirmButtonColor: '#a855f7',
-                background: 'transparent',
-              });
-            } catch (_) {}
-            await signOut({ callbackUrl: '/login' });
-          }}
-          className="absolute bottom-4 left-4 px-6 py-2 text-lg rounded-lg cursor-pointer bg-red-500 text-white border-none hover:bg-red-600"
-        >
-          Logout
-        </button>
-      </div>
-    );
-  }
-
-  if (mode === 'memorize') {
-    return <MemorizeMode user={user} problems={filteredProblems} level={user.level} onReset={resetGame} />;
-  }
-  if (mode === 'practice') {
-    return (
-      <PracticeMode user={user} problems={filteredProblems} level={user.level} onReset={resetGame}
-        attemptSummaries={attemptSummaries} setAttemptSummaries={setAttemptSummaries}
-        userProgress={userProgress} setUserProgress={setUserProgress} />
-    );
-  }
-  if (mode === 'testing') {
-    return (
-      <TestingMode user={user} problems={filteredProblems} level={user.level} onLevelUp={handleLevelUp} onReset={resetGame}
-        attemptSummaries={attemptSummaries} setAttemptSummaries={setAttemptSummaries} userProgress={userProgress} />
-    );
-  }
-  return null;
+  return <AnimatePresence mode="wait">{content}</AnimatePresence>;
 }
 
 export default function Page() {
