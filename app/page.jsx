@@ -6,12 +6,13 @@ import { useSession } from 'next-auth/react';
 import MemorizeMode from '../components/MemorizeMode';
 import PracticeMode from '../components/PracticeMode';
 import TestingMode from '../components/TestingMode';
-import { CenterScreen, SignInCard } from '../components/modes/shared/GateViews';
+import { CenterScreen } from '../components/modes/shared/GateViews';
 import { GradeGate, MenuScreen } from '../components/modes/shared/HomeMenu';
-import { useAuthUser } from '../components/modes/shared/useAuthUser';
+import { useAuthUser, useLoginRedirect } from '../components/modes/shared/useAuthUser';
 import { useLevelUp } from '../components/modes/shared/useLevelUp';
 import { useHomeData } from '../components/modes/shared/useHomeData';
 import { makePickMission, testingStats } from '../components/modes/shared/homeLogic';
+import CadetWelcome, { useCadetWelcome } from '../components/CadetWelcome';
 import { AnimatePresence, motion } from 'framer-motion';
 
 function LoadingView({ loading }) {
@@ -50,7 +51,9 @@ function pickContent(mode, ctx, ui, actions) {
 function AppInner() {
   const { status } = useSession();
   const [user, setUser] = useAuthUser(status);
+  useLoginRedirect(status);
   const loading = status === 'loading';
+  const [cadetWelcome, closeCadetWelcome] = useCadetWelcome();
   const [mode, setMode] = useState(null);
   const [lockedOpen, setLockedOpen] = useState(false);
   const [gradeOpen, setGradeOpen] = useState(false); // grade chooser from the menu
@@ -75,21 +78,20 @@ function AppInner() {
     data.fetchProgressSummary();
   };
 
-  if (loading || (user && problemsLoading)) return <LoadingView loading={loading} />;
-  if (!user) {
-    return (
-      <CenterScreen>
-        <SignInCard message="Please sign in to start practicing." />
-      </CenterScreen>
-    );
-  }
+  if (loading || !user || problemsLoading) return <LoadingView loading={loading || !user} />;
 
   const ctx = { user, scopedSkill, filteredProblems, resetGame, handleLevelUp, data };
   const ui = { gradeOpen, lockedOpen, pickedSkill, setGradeOpen, setLockedOpen, setPickedSkill };
   const actions = { reset: resetGame, setMode, pickMission, startScoped, fetchMissions };
-  const content = pickContent(mode, ctx, ui, actions);
+  // One overlay at a time on landing: the cadet popup goes first, the grade picker / menu only after it is dismissed.
+  const content = cadetWelcome ? null : pickContent(mode, ctx, ui, actions);
 
-  return <AnimatePresence mode="wait">{content}</AnimatePresence>;
+  return (
+    <>
+      <AnimatePresence mode="wait">{content}</AnimatePresence>
+      <CadetWelcome welcome={cadetWelcome} onClose={closeCadetWelcome} />
+    </>
+  );
 }
 
 export default function Page() {

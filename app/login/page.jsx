@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import Screen, { GlassCard } from '../../components/ui/Screen';
 import BrandBadge from '../../components/braylee/BrandBadge';
 import HostAstronaut from '../../components/game/HostAstronaut';
+import Button from '../../components/ui/Button';
 import GuestButtons from './_components/GuestButtons';
 import CredentialsForm from './_components/CredentialsForm';
 import ShakeError from './_components/ShakeError';
@@ -32,21 +33,22 @@ export default function LoginPage() {
 
         <GlassCard>
           <div className="flex flex-col gap-3">
-            <GuestButtons resume={login.resume} loading={login.loading} onEnter={login.enterGuest} />
+            {showLogin ? (
+              <CredentialsForm pin={login.pin} setPin={login.setPin} error={error} loading={login.loading}
+                onSubmit={login.handleLogin} onBack={login.closeLogin} />
+            ) : (
+              <GuestButtons resume={login.resume} loading={login.loading} onEnter={login.enterGuest} />
+            )}
 
             <div aria-live="polite" className="min-h-[1.5rem] text-center">
               {!showLogin && <ShakeError error={error} />}
               {done && <p className="text-body font-bold text-neon-lime">{done}</p>}
             </div>
 
-            {showLogin ? (
-              <CredentialsForm name={login.name} pin={login.pin} setName={login.setName} setPin={login.setPin}
-                error={error} loading={login.loading} onSubmit={login.handleLogin} />
-            ) : (
-              <button type="button" className="min-h-[3rem] text-body text-neon-cyan underline underline-offset-4"
-                onClick={login.openLogin}>
-                Log in
-              </button>
+            {!showLogin && (
+              <Button tone="ghost" size="md" disabled={login.loading} onClick={login.openLogin} className="w-full !min-h-[48px]">
+                Are you Braylee?
+              </Button>
             )}
           </div>
         </GlassCard>

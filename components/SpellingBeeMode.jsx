@@ -7,9 +7,9 @@ import Header from './Header';
 import Screen from './ui/Screen';
 import GameHud from './game/GameHud';
 import { useFeedback, GifSlot } from './gif/GifProvider';
-import { CenterScreen, SignInCard } from './modes/shared/GateViews';
+import { CenterScreen } from './modes/shared/GateViews';
 import { StartPanel, RoundPanel } from './modes/shared/SpellingViews';
-import { useAuthUser } from './modes/shared/useAuthUser';
+import { useAuthUser, useLoginRedirect } from './modes/shared/useAuthUser';
 import { useSpellingWords } from './modes/shared/useSpellingWords';
 import { useSpellingRound } from './modes/shared/useSpellingRound';
 
@@ -18,6 +18,7 @@ function SpellingBeeMode() {
   const router = useRouter();
   const feedback = useFeedback();
   const [user] = useAuthUser(authStatus);
+  useLoginRedirect(authStatus);
   const loading = authStatus === 'loading';
 
   useEffect(() => {
@@ -29,15 +30,8 @@ function SpellingBeeMode() {
   const { wordsReady, myGrade, pick, setPick, wordsRef } = useSpellingWords();
   const round = useSpellingRound({ wordsRef, feedback });
 
-  if (loading) {
+  if (loading || !user) {
     return <CenterScreen><p role="status" className="text-title text-neon-amber">Loading… 🐝</p></CenterScreen>;
-  }
-  if (!user) {
-    return (
-      <CenterScreen className="">
-        <SignInCard titleClass="text-neon-amber" message="Please sign in to start the Spelling Bee." className="text-center" />
-      </CenterScreen>
-    );
   }
 
   return (
