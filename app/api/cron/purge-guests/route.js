@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
+import { isSchemaMissing, maintenanceResponse } from '../../../../lib/dbErrors';
 import { purgeExpired } from '../../../../lib/guests';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,10 @@ export async function GET(req) {
   if (!secret || !safeEqual(auth, `Bearer ${secret}`)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const purged = await purgeExpired();
-  return NextResponse.json({ purged });
+  try {
+    return NextResponse.json({ purged: await purgeExpired() });
+  } catch (e) {
+    if (isSchemaMissing(e)) return maintenanceResponse();
+    throw e;
+  }
 }

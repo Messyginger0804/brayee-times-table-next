@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   GUEST_IDLE_MS, TOUCH_INTERVAL_MS, claimSeat, cookieValue, findSeatByToken, hashToken, isExpired, pickSeat,
-  guestSeatCount, purgeExpired, releaseByToken, seatLabel, touchGuest, validateGuestSession, _resetTouchCache,
+  guestSeatCount, guestMinIdleMs, SeatsBusyError, purgeExpired, releaseByToken, seatLabel, touchGuest, validateGuestSession, _resetTouchCache, wipeSeat,
 } from '../lib/guests';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -21,6 +21,7 @@ function fakeDb() {
       if ('lt' in v) return u[k] !== null && u[k] !== undefined && u[k] < v.lt;
     }
     if (v === null) return u[k] === null || u[k] === undefined;
+    if (v instanceof Date) return u[k] instanceof Date && u[k].getTime() === v.getTime();
     return u[k] === v;
   });
   const db = {
@@ -52,7 +53,7 @@ function fakeDb() {
 const seatOf = (db, n) => db.users.find((u) => u.guestSeat === n);
 
 beforeEach(() => _resetTouchCache());
-afterEach(() => { delete process.env.GUEST_SEATS; });
+afterEach(() => { delete process.env.GUEST_SEATS; delete process.env.GUEST_MIN_IDLE_MINUTES; });
 
 describe('pickSeat (pure)', () => {
   it('takes the lowest-numbered free seat first', () => {
@@ -71,6 +72,54 @@ describe('pickSeat (pure)', () => {
     const seats = [3, 1, 2].map((n) => ({ guestSeat: n, guestTokenHash: 'x', lastActiveAt: at(0) }));
     expect(pickSeat(seats).seat.guestSeat).toBe(1);
     expect(pickSeat([])).toBeNull();
+  });
+});
+
+describe('seat reuse needs an idle floor', () => {
+  const full = (idleMs) => [1, 2, 3].map((n) => ({ guestSeat: n, guestTokenHash: `h${n}`, lastActiveAt: new Date(T0.getTime() - idleMs[n - 1]) }));
+  it('returns null when every seat was active within GUEST_MIN_IDLE_MINUTES', () => {
+    expect(pickSeat(full([60_000, 120_000, 14 * 60_000]), T0)).toBeNull();
+  });
+  it('reuses the longest-idle seat that has passed the floor', () => {
+    expect(pickSeat(full([60_000, 16 * 60_000, 40 * 60_000]), T0)).toMatchObject({ reuse: true, seat: { guestSeat: 3 } });
+  });
+  it('honours the env var', () => {
+    expect(guestMinIdleMs()).toBe(15 * 60_000);
+    process.env.GUEST_MIN_IDLE_MINUTES = '1';
+    expect(guestMinIdleMs()).toBe(60_000);
+    expect(pickSeat(full([61_000, 5000, 5000]), T0)).toMatchObject({ seat: { guestSeat: 1 } });
+    process.env.GUEST_MIN_IDLE_MINUTES = 'junk';
+    expect(guestMinIdleMs()).toBe(15 * 60_000);
+  });
+  it('claimSeat with a full, recently active house evicts nobody and throws SeatsBusyError', async () => {
+    const db = fakeDb();
+    const claims = [];
+    for (let i = 0; i < 5; i++) claims.push(await claimSeat(db, at(i * 1000)));
+    db.data.attempt.push({ userId: seatOf(db, 1).id });
+    await expect(claimSeat(db, at(10 * 60_000))).rejects.toBeInstanceOf(SeatsBusyError);
+    expect(db.data.attempt).toHaveLength(1);
+    for (const c of claims) expect(await findSeatByToken(c.token, db, at(10 * 60_000))).not.toBeNull();
+    // after the idle window the longest-idle seat (1) is reusable
+    const next = await claimSeat(db, at(20 * 60_000));
+    expect(next.user.guestSeat).toBe(1);
+    expect(db.data.attempt).toHaveLength(0);
+  });
+  it('reuse is compare-and-set: two parallel claims on a full idle house never share a seat', async () => {
+    const db = fakeDb();
+    for (let i = 0; i < 5; i++) await claimSeat(db, at(i * 1000));
+    const results = await Promise.all(Array.from({ length: 8 }, () => claimSeat(db, at(2 * DAY)).catch((e) => e)));
+    const won = results.filter((r) => r.user);
+    const seats = won.map((r) => r.user.guestSeat);
+    expect(new Set(seats).size).toBe(seats.length);
+    expect(seats.length).toBeLessThanOrEqual(5);
+    for (const w of won) expect(seatOf(db, w.user.guestSeat).guestTokenHash).toBe(hashToken(w.token));
+  });
+  it('wipeSeat with a stale guard changes nothing', async () => {
+    const db = fakeDb();
+    await claimSeat(db, T0);
+    const u = seatOf(db, 1);
+    expect(await wipeSeat(db, u.id, {}, { guestTokenHash: 'stale', lastActiveAt: u.lastActiveAt })).toBe(false);
+    expect(u.guestTokenHash).not.toBeNull();
   });
 });
 
