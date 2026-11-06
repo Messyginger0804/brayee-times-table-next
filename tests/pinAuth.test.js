@@ -34,12 +34,15 @@ vi.mock('../lib/prisma', () => ({
 
 const { verifyPin, cooldownFor, lockMessage, MAX_FAILS, hashPin, isHashed } = await import('../lib/pinAuth');
 const { _resetRateLimits } = await import('../lib/rateLimit');
+const { signDevice, _resetDevices } = await import('../lib/deviceTrust');
 
 const mk = async (extra = {}) => ({
   id: 1, name: 'Tester', isGuest: false, pin: await hashPin('1234'), failedLoginAttempts: 0, lockedUntil: null, ...extra,
 });
 let compares;
 beforeEach(async () => {
+  process.env.NEXTAUTH_SECRET = 'test-secret-one';
+  _resetDevices();
   _resetRateLimits();
   state.now = () => Date.now();
   state.users = [await mk()];
@@ -122,5 +125,57 @@ describe('verifyPin', () => {
     const r = await verifyPin('Tester', '1234');
     prisma.user.findUnique = orig;
     expect(r).toMatchObject({ ok: false, status: 503, maintenance: true });
+  });
+});
+
+describe('trusted-device cookie', () => {
+  const lockAccount = async () => { for (let i = 0; i < 5; i++) await verifyPin('Tester', '0000'); };
+
+  it('an attacker without the cookie locks the account, but the trusted device still logs in', async () => {
+    const dev = signDevice(1);
+    await lockAccount();
+    expect((await verifyPin('Tester', '1234')).status).toBe(429); // no cookie: locked out
+    const r = await verifyPin('Tester', '1234', { deviceToken: dev });
+    expect(r).toMatchObject({ ok: true, trusted: true });
+    expect(state.users[0].failedLoginAttempts).toBe(5); // trusted success does not unlock the account for attackers
+  });
+
+  it('forged, expired, other-account and no-secret cookies get no bypass', async () => {
+    await lockAccount();
+    const good = signDevice(1);
+    const [payload, mac] = good.split('.');
+    const forged = `${Buffer.from(`1.abc.${Date.now()}`).toString('base64url')}.${mac}`;
+    const expired = signDevice(1, Date.now() - 91 * 24 * 3600 * 1000);
+    const other = signDevice(2);
+    for (const deviceToken of [forged, expired, other, 'junk', `${payload}.x`]) {
+      expect((await verifyPin('Tester', '1234', { deviceToken })).status).toBe(429);
+    }
+    delete process.env.NEXTAUTH_SECRET;
+    expect((await verifyPin('Tester', '1234', { deviceToken: good })).status).toBe(429);
+  });
+
+  it('five bad tries on a trusted device rest it for 15 minutes and revoke the cookie, without touching the account counter', async () => {
+    const dev = signDevice(1);
+    for (let i = 0; i < 4; i++) expect((await verifyPin('Tester', '0000', { deviceToken: dev })).status).toBe(401);
+    const fifth = await verifyPin('Tester', '0000', { deviceToken: dev });
+    expect(fifth).toMatchObject({ status: 429, retryAfter: 900 });
+    expect(state.users[0].failedLoginAttempts).toBe(0);
+    // revoked: even the right PIN no longer gets the trusted path
+    await lockAccount();
+    expect((await verifyPin('Tester', '1234', { deviceToken: dev })).status).toBe(429);
+  });
+
+  it('a trusted success clears that device\'s own failures', async () => {
+    const dev = signDevice(1);
+    for (let i = 0; i < 4; i++) await verifyPin('Tester', '0000', { deviceToken: dev });
+    expect((await verifyPin('Tester', '1234', { deviceToken: dev })).ok).toBe(true);
+    for (let i = 0; i < 4; i++) expect((await verifyPin('Tester', '0000', { deviceToken: dev })).status).toBe(401);
+  });
+
+  it('the per-IP limiter still applies to trusted devices', async () => {
+    const dev = signDevice(1);
+    let last;
+    for (let i = 0; i < 31; i++) last = await verifyPin('Tester', '1234', { ip: '7.7.7.7', deviceToken: dev });
+    expect(last.status).toBe(429);
   });
 });

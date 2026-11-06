@@ -42,7 +42,18 @@ function fakeDb() {
         return { count: hit.length };
       },
     },
-    $transaction: async (ops) => Promise.all(ops),
+    // interactive transaction with rollback: snapshot, run, restore on throw
+    $transaction: async (fn) => {
+      if (Array.isArray(fn)) return Promise.all(fn);
+      const snap = { users: users.map((u) => ({ ...u })), data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, [...v]])) };
+      try {
+        return await fn(db);
+      } catch (e) {
+        users.splice(0, users.length, ...snap.users);
+        for (const k of Object.keys(data)) data[k] = snap.data[k];
+        throw e;
+      }
+    },
   };
   for (const k of Object.keys(data)) {
     db[k] = { deleteMany: async ({ where }) => { data[k] = data[k].filter((r) => r.userId !== where.userId); } };
@@ -120,6 +131,56 @@ describe('seat reuse needs an idle floor', () => {
     const u = seatOf(db, 1);
     expect(await wipeSeat(db, u.id, {}, { guestTokenHash: 'stale', lastActiveAt: u.lastActiveAt })).toBe(false);
     expect(u.guestTokenHash).not.toBeNull();
+  });
+});
+
+describe('wipe is atomic', () => {
+  const failOnce = (db, table) => {
+    const real = db[table].deleteMany;
+    db[table].deleteMany = async (args) => { db[table].deleteMany = real; throw new Error('boom'); };
+  };
+  const seed = async () => {
+    const db = fakeDb();
+    const c = await claimSeat(db, T0);
+    const u = seatOf(db, 1);
+    u.grade = 4;
+    db.data.attempt.push({ userId: u.id });
+    db.data.mathAttempt.push({ userId: u.id });
+    db.data.userProblem.push({ userId: u.id });
+    return { db, c, u, before: { ...u } };
+  };
+
+  it('a failure mid-wipe on reuse leaves the old owner fully intact (no half-wiped, re-tokened seat)', async () => {
+    const { db, c, u, before } = await seed();
+    for (let i = 2; i <= 5; i++) await claimSeat(db, at(i));
+    failOnce(db, 'userProblem');
+    await expect(claimSeat(db, at(2 * DAY))).rejects.toThrow('boom');
+    expect(seatOf(db, 1)).toEqual(before);
+    expect(db.data.attempt).toHaveLength(1);
+    expect(db.data.mathAttempt).toHaveLength(1);
+    expect(db.data.userProblem).toHaveLength(1);
+    expect((await findSeatByToken(c.token, db, at(60_000)))?.guestSeat).toBe(1); // old owner keeps access
+  });
+
+  it('a failure mid-purge changes nothing, and the next purge succeeds', async () => {
+    const { db, u, before } = await seed();
+    failOnce(db, 'mathAttempt');
+    await expect(purgeExpired(db, at(8 * DAY))).rejects.toThrow('boom');
+    expect(seatOf(db, 1)).toEqual(before);
+    expect(db.data.attempt).toHaveLength(1);
+    expect(await purgeExpired(db, at(8 * DAY))).toBe(1);
+    expect(db.data.attempt).toHaveLength(0);
+    expect(seatOf(db, 1)).toMatchObject({ grade: null, guestTokenHash: null });
+  });
+
+  it('a failure on the "new guest" release path keeps the seat and its data', async () => {
+    const { db, c, before } = await seed();
+    failOnce(db, 'attempt');
+    await expect(releaseByToken(c.token, db, at(1000))).rejects.toThrow('boom');
+    expect(seatOf(db, 1)).toEqual(before);
+    expect(db.data.attempt).toHaveLength(1);
+    expect(await releaseByToken(c.token, db, at(1000))).toBe(true);
+    expect(db.data.attempt).toHaveLength(0);
   });
 });
 
