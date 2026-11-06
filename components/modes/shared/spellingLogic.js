@@ -1,3 +1,4 @@
+import { speakSpelling } from '../../../lib/cheerVoice';
 import axios from 'axios';
 
 export const gradeLabel = (g) => ({ 1: '1st', 2: '2nd', 3: '3rd' }[g] || `${g}th`);
@@ -36,12 +37,5 @@ export const spellingPauseMs = (isCorrect) => (isCorrect ? 1400 : 2600);
 
 export const pickRandom = (list, rand = Math.random) => list[Math.floor(rand() * list.length)];
 
-export function speakWord(text) {
-  try {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    window.speechSynthesis.speak(utterance);
-  } catch (_) {}
-}
+/** Spelling Bee speech goes through cheerVoice so it always wins over Braylee's cheers. */
+export const speakWord = speakSpelling;

@@ -1,11 +1,13 @@
 "use client";
 import { signOut } from 'next-auth/react';
 import Screen, { GlassCard } from '../../../components/ui/Screen';
+import BrandBadge from '../../../components/braylee/BrandBadge';
 import Button from '../../../components/ui/Button';
 
 export default function SignedInCard() {
   return (
     <Screen className="items-center justify-center">
+      <BrandBadge as="h1" className="mb-4" />
       <GlassCard className="w-full max-w-sm text-center">
         <p className="mb-4 text-lead">You are already signed in 🚀</p>
         <div className="flex flex-col gap-3">

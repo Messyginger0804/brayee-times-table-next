@@ -58,15 +58,28 @@ describe('GET /api/avatar', () => {
 
 describe('GET /api/avatar/host', () => {
   const req = (q = '') => getReq(`http://localhost/api/avatar/host${q}`);
-  it('404 (public, cached 60s) with no "host" key', async () => {
+  it('falls back to the committed photo (public, cached) with no "host" key', async () => {
     readAvatarMap.mockResolvedValue({ Kid: 'k.png' });
     const res = await hostGET(req());
-    expect(res.status).toBe(404);
-    expect(res.headers.get('cache-control')).toBe('public, max-age=60');
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('http://localhost/braylee/face-512.webp');
+    expect(res.headers.get('cache-control')).toBe('public, max-age=3600');
   });
-  it('404 when the map is unreadable', async () => {
+  it('falls back to the 160px photo for ?size=160 when the map is unreadable', async () => {
     readAvatarMap.mockRejectedValue(new Error('x'));
-    expect((await hostGET(req())).status).toBe(404);
+    const res = await hostGET(req('?size=160'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('http://localhost/braylee/face-160.webp');
+  });
+  it('an odd size never reaches the redirect path', async () => {
+    readAvatarMap.mockRejectedValue(new Error('x'));
+    const res = await hostGET(req('?size=../../etc'));
+    expect(res.headers.get('location')).toBe('http://localhost/braylee/face-512.webp');
+  });
+  it('the private file wins over the fallback when present', async () => {
+    readAvatarMap.mockResolvedValue({ host: 'h.png' });
+    avatarResponse.mockResolvedValue(OK());
+    expect((await hostGET(req())).status).toBe(200);
   });
   it('requires no session', async () => {
     getUserId.mockResolvedValue(null);
@@ -96,9 +109,9 @@ describe('GET /api/avatar/host', () => {
     await hostGET(req());
     expect(avatarResponse).toHaveBeenLastCalledWith('nobody.png', '512', 'public');
   });
-  it('404 when the entry is not servable', async () => {
+  it('falls back when the entry is not servable', async () => {
     readAvatarMap.mockResolvedValue({ host: 'h.txt' });
     avatarResponse.mockResolvedValue(null);
-    expect((await hostGET(req())).status).toBe(404);
+    expect((await hostGET(req())).status).toBe(307);
   });
 });

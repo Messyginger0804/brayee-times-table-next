@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { GIFS, GIF_SETTINGS, GIF_MESSAGES } from '../../config/gifs';
 import { gameFx } from '../../lib/gameFx';
 import GifImage from './GifImage';
+import ReadySetGo from '../braylee/ReadySetGo';
+import { useIntroPlayer } from '../braylee/useIntroPlayer';
 
 const FeedbackContext = createContext(null);
 const SlotContext = createContext(() => {});
@@ -70,6 +72,8 @@ export function GifProvider({ children }) {
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  const { introOn, finishIntro, playIntro } = useIntroPlayer();
+
   // Warm the two most likely GIFs once the page is idle
   useEffect(() => {
     const t = setTimeout(() => { preload('celebrate'); preload('tryAgain'); }, 1500);
@@ -84,18 +88,26 @@ export function GifProvider({ children }) {
       return ms.includes(n) || (n > top && GIF_SETTINGS.streakRepeatEvery > 0 && n % GIF_SETTINGS.streakRepeatEvery === 0);
     };
     return {
-      /** Session started (entering a game mode / first menu view) */
-      startSession({ withGif = true } = {}) {
-        gameFx.reset();
+      /**
+       * Session started (entering a game mode / first menu view).
+       * With `intro: true` the Ready-set-go overlay plays first and a Promise is returned that resolves
+       * when it finishes or is skipped; the round must not start before then. Otherwise returns undefined.
+       */
+      startSession({ withGif = true, intro: withIntro = false } = {}) {
+        gameFx.reset({ silent: withIntro });
         preload('celebrate');
+        if (withIntro) return playIntro();
         if (withGif) show('welcome');
+        return undefined;
       },
+      /** Play only the Ready-set-go overlay (no reset, no GIF). Resolves when it finishes or is skipped. */
+      playIntro,
       /**
        * Correct answer. `streak` is the new streak count; `setComplete` / `newBest` trigger levelUp.
        * Returns which GIF category (if any) was shown.
        */
-      correct({ streak = 0, setComplete = false, newBest = false } = {}) {
-        gameFx.correct();
+      correct({ streak = 0, setComplete = false, newBest = false, moment } = {}) {
+        gameFx.correct(moment);
         let cat = null;
         if (setComplete || newBest) cat = 'levelUp';
         else if (isMilestone(streak)) cat = 'streak';
@@ -108,23 +120,24 @@ export function GifProvider({ children }) {
         if (isMilestone(next)) preload('streak');
         return cat;
       },
-      wrong() {
+      wrong({ moment } = {}) {
         // Encouragement is always shown on a miss, it matters more than the cooldown.
         // Show first so the astronaut's bubble knows the GIF text and picks a different line.
         show('tryAgain');
-        gameFx.wrong();
+        gameFx.wrong(moment);
         return 'tryAgain';
       },
       levelUp() { show('levelUp'); gameFx.emit('levelUp'); },
       preload,
       dismiss,
     };
-  }, [preload, show, dismiss]);
+  }, [preload, show, dismiss, playIntro]);
 
   return (
     <FeedbackContext.Provider value={api}>
       <SlotContext.Provider value={setSlotEl}>{children}</SlotContext.Provider>
       <GifOverlay active={active} onDismiss={dismiss} slotEl={slotEl} />
+      <AnimatePresence>{introOn && <ReadySetGo key="intro" onDone={finishIntro} />}</AnimatePresence>
     </FeedbackContext.Provider>
   );
 }

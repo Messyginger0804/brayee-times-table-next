@@ -6,9 +6,37 @@ import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, readdirSync, exist
 import { tmpdir, homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const src = readFileSync(join(root, 'scripts/icons/helmet.svg'), 'utf8');
+const base = readFileSync(join(root, 'scripts/icons/helmet.svg'), 'utf8');
+const facePath = join(root, 'public/braylee/face-512.webp');
+
+// Face crops (square, from the 512px face image) as webp data URIs.
+// wide: forehead to chin with a little shoulder, fills the visor. tight: face only, for 16-48px favicons.
+async function faceUri(crop, px) {
+  const buf = await sharp(facePath).extract(crop).resize(px, px).webp({ quality: 82 }).toBuffer();
+  return `data:image/webp;base64,${buf.toString('base64')}`;
+}
+const wide = await faceUri({ left: 60, top: 118, width: 380, height: 380 }, 320);
+const tight = await faceUri({ left: 120, top: 150, width: 260, height: 260 }, 160);
+
+// Full helmet art: the empty helmet with her face in the visor instead of the "B".
+const FACE_IN_VISOR = `<clipPath id="vis"><rect x="104" y="140" width="304" height="264" rx="116" ry="116"/></clipPath>
+    <image href="${wide}" x="104" y="124" width="304" height="304" preserveAspectRatio="xMidYMid slice" clip-path="url(#vis)"/>
+    <rect x="104" y="140" width="304" height="264" rx="116" ry="116" fill="none" stroke="#38f0ff" stroke-width="6"/>`;
+const src = base.replace(/<!-- B glow \+ B -->[\s\S]*?(?=<!-- sheen -->)/, FACE_IN_VISOR + '\n    ').replace('stroke-opacity="0.75"', 'stroke-opacity="0.4"');
+
+// Simplified helmet for tiny sizes: no ear caps or visor frame, thick rim, big round face.
+const simple = base.replace(/<!--ART-->[\s\S]*<\/svg>/, `<!--ART-->
+  <g id="art">
+    <circle cx="256" cy="262" r="226" fill="url(#rim)"/>
+    <clipPath id="face"><circle cx="256" cy="262" r="186"/></clipPath>
+    <image href="${tight}" x="70" y="76" width="372" height="372" preserveAspectRatio="xMidYMid slice" clip-path="url(#face)"/>
+    <circle cx="256" cy="262" r="186" fill="none" stroke="#38f0ff" stroke-width="14"/>
+    <path d="M410 40 Q414 76 450 80 Q414 84 410 120 Q406 84 370 80 Q406 76 410 40Z" fill="#b6ff3b"/>
+  </g>
+</svg>`);
 
 function findChrome() {
   if (process.env.CHROME) return process.env.CHROME;
@@ -40,7 +68,7 @@ function render(svg, size, transparent) {
 
 const out = (p, buf) => { mkdirSync(dirname(join(root, p)), { recursive: true }); writeFileSync(join(root, p), buf); console.log('wrote', p); };
 
-out('app/icon.svg', Buffer.from(src));
+out('app/icon.svg', Buffer.from(simple));
 out('app/apple-icon.png', render(full, 180));
 out('public/icons/icon-192.png', render(src, 192));
 out('public/icons/icon-512.png', render(src, 512));
@@ -48,7 +76,7 @@ out('public/icons/icon-maskable-512.png', render(maskable, 512));
 
 // ICO with embedded PNGs (16, 32, 48)
 const sizes = [16, 32, 48];
-const pngs = sizes.map((s) => render(src, s));
+const pngs = sizes.map((s) => render(simple, s));
 const head = Buffer.alloc(6 + 16 * sizes.length);
 head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2); head.writeUInt16LE(sizes.length, 4);
 let off = head.length;

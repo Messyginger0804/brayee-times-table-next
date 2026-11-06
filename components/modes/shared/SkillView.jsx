@@ -8,6 +8,7 @@ import Keypad from '../../game/Keypad';
 import ChoicePad from '../../game/ChoicePad';
 import QuestionCard from '../../game/QuestionCard';
 import GameHud from '../../game/GameHud';
+import BrayleeCheer from '../../braylee/BrayleeCheer';
 import { GifSlot } from '../../gif/GifProvider';
 import { progressPct } from './skillLogic';
 
@@ -58,6 +59,7 @@ function SkillModal({ modal, title, onClose, onBack }) {
   );
   return (
     <Modal open={!!modal} onClose={onClose} title={mastered ? 'Mission complete! 🏆' : `Level ${modal?.level} unlocked! 🚀`} actions={actions}>
+      <BrayleeCheer key={mastered ? 'm' : modal?.level} moment={mastered ? 'mastered' : 'levelUp'} pose="levelUp" size={96} speak className="mb-3" />
       <p className="text-lead font-bold text-ink">
         {mastered ? `You mastered ${title}! 🌟` : 'Great job! The next problems are a little trickier.'}
       </p>

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
 import { recordStreak } from '../../../lib/bestStreak';
+import { startAfterIntro } from '../../../lib/readySetGo';
 import { speakWord, isCorrectSpelling, spellingPauseMs, pickRandom } from './spellingLogic';
 
 /** One word at a time: pick, speak, check, score. */
@@ -14,7 +15,9 @@ export function useSpellingRound({ wordsRef, feedback }) {
   const timer = useRef(null);
   const inputRef = useRef(null);
 
-  useEffect(() => () => { clearTimeout(timer.current); try { window.speechSynthesis?.cancel(); } catch (_) {} }, []);
+  const cancelIntro = useRef(null);
+
+  useEffect(() => () => { cancelIntro.current?.(); clearTimeout(timer.current); try { window.speechSynthesis?.cancel(); } catch (_) {} }, []);
 
   const startRound = () => {
     const list = wordsRef.current;
@@ -29,12 +32,18 @@ export function useSpellingRound({ wordsRef, feedback }) {
     setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
   };
 
+  // "Start Round": Ready-set-go first, then the first word is spoken and the field focused.
+  const beginRound = () => {
+    if (cancelIntro.current || !wordsRef.current.length) return;
+    cancelIntro.current = startAfterIntro(feedback.playIntro, () => { cancelIntro.current = null; startRound(); });
+  };
+
   const score = (isCorrect) => {
-    if (!isCorrect) { setStreak(0); feedback.wrong(); return; }
+    if (!isCorrect) { setStreak(0); feedback.wrong({ moment: 'spellingWrong' }); return; }
     const next = streak + 1;
     setStreak(next);
     setStars((s) => s + 1);
-    feedback.correct({ streak: next, newBest: recordStreak('spelling', next) });
+    feedback.correct({ streak: next, newBest: recordStreak('spelling', next), moment: 'spellingCorrect' });
   };
 
   const handleSubmit = (e) => {
@@ -50,5 +59,5 @@ export function useSpellingRound({ wordsRef, feedback }) {
 
   const changeWords = () => { clearTimeout(timer.current); setCurrentWordData(null); setResult(null); };
 
-  return { currentWordData, userAnswer, setUserAnswer, result, hint, streak, stars, inputRef, startRound, handleSubmit, changeWords };
+  return { currentWordData, userAnswer, setUserAnswer, result, hint, streak, stars, inputRef, startRound: beginRound, handleSubmit, changeWords };
 }

@@ -7,7 +7,9 @@ import LevelIndicator from '../../LevelIndicator';
 import MissionMap from '../../MissionMap';
 import GradePicker, { ordinal } from '../../GradePicker';
 import AstronautStage from '../../game/AstronautStage';
-import HostAstronaut, { SpeechBubble, HOST_WELCOME, HOST_LINES } from '../../game/HostAstronaut';
+import BrandBadge from '../../braylee/BrandBadge';
+import BrayleeCheer from '../../braylee/BrayleeCheer';
+import HostAstronaut, { HOST_WELCOME, HOST_LINES } from '../../game/HostAstronaut';
 import Screen, { GlassCard } from '../../ui/Screen';
 import Button from '../../ui/Button';
 import Modal from '../../ui/Modal';
@@ -41,10 +43,7 @@ function Welcome({ user }) {
     return <HostAstronaut size={92} layout="row" storageKey="host-welcomed" lines={[HOST_WELCOME, ...HOST_LINES]} className="mb-3 w-full max-w-sm" />;
   }
   return (
-    <>
-      <AstronautStage size={132} listen={false} className="relative mb-3" />
-      <SpeechBubble text={`Welcome back, Cadet ${user.name}! 🚀`} className="mb-3 mt-1 max-w-[19rem]" />
-    </>
+    <BrayleeCheer moment="welcomeBack" name={user.name} size={132} className="mb-3" />
   );
 }
 
@@ -105,6 +104,7 @@ function PickedSkillModal({ picked, onClose, onStart }) {
   );
   return (
     <Modal open={!!picked} onClose={onClose} title={locked ? 'Not yet, Cadet! 🔒' : 'Pick your way to play'} actions={actions}>
+      {locked && <BrayleeCheer moment="locked" pose="tryAgain" size={88} speak className="mb-3" />}
       {locked ? 'Finish the mission before this one to open it.' : picked?.name}
     </Modal>
   );
@@ -140,6 +140,7 @@ export function MenuScreen({ user, curr, stats, ui, actions }) {
     <Screen>
       <Header onReset={actions.reset} userName={user.name} menuLabel="Home" />
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-4">
+        <BrandBadge size={36} className="-mb-1" />
         <div className="flex flex-col items-center text-center">
           <Welcome user={user} />
           <h1 className="text-hero text-neon-cyan text-glow">Choose Your Mission</h1>
