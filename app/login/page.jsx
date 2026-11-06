@@ -2,7 +2,7 @@
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import Screen, { GlassCard } from '../../components/ui/Screen';
-import BrandBadge from '../../components/braylee/BrandBadge';
+import Wordmark from '../../components/braylee/Wordmark';
 import HostAstronaut from '../../components/game/HostAstronaut';
 import Button from '../../components/ui/Button';
 import GuestButtons from './_components/GuestButtons';
@@ -10,10 +10,12 @@ import CredentialsForm from './_components/CredentialsForm';
 import ShakeError from './_components/ShakeError';
 import SignedInCard from './_components/SignedInCard';
 import useLogin from './_components/useLogin';
+import { useSceneKind } from '../../lib/sceneFx';
 
 export default function LoginPage() {
   const { data: session } = useSession();
   const login = useLogin();
+  useSceneKind('login');
 
   if (session?.user) return <SignedInCard />;
 
@@ -26,7 +28,7 @@ export default function LoginPage() {
         className="w-full max-w-sm"
       >
         <div className="mb-4 text-center">
-          <BrandBadge as="h1" className="mb-4" />
+          <Wordmark as="h1" className="mb-3" />
           <HostAstronaut size={150} className="mb-3" />
           <p className="mt-1 text-lead text-ink-dim">Ready for blast off?</p>
         </div>

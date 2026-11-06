@@ -5,13 +5,14 @@ import LevelIndicator from '../../LevelIndicator';
 import MissionMap from '../../MissionMap';
 import GradePicker, { ordinal } from '../../GradePicker';
 import AstronautStage from '../../game/AstronautStage';
-import BrandBadge from '../../braylee/BrandBadge';
+import Wordmark from '../../braylee/Wordmark';
 import BrayleeCheer from '../../braylee/BrayleeCheer';
 import HostAstronaut, { HOST_WELCOME, HOST_LINES } from '../../game/HostAstronaut';
 import Screen, { GlassCard } from '../../ui/Screen';
 import Button from '../../ui/Button';
 import Modal from '../../ui/Modal';
 import { testingCopy } from './homeLogic';
+import { sceneFx, useScenePopup } from '../../../lib/sceneFx';
 
 const TILE = 'flex min-h-[5rem] w-full items-center gap-4 rounded-bubble px-5 text-left text-title';
 const ITEM = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
@@ -24,6 +25,7 @@ const MODE_TILES = [
 
 /** First time (new guest seat, or Braylee before she has picked): ask the grade before anything else. */
 export function GradeGate({ onPicked }) {
+  useScenePopup(true);
   return (
     <Screen className="items-center justify-center text-center">
       <GlassCard className="flex w-full max-w-sm flex-col items-center gap-4">
@@ -122,7 +124,7 @@ function MenuModals({ curr, gradeOpen, lockedOpen, picked, onGradePicked, onClos
       >
         Answer every problem in this level at least once in Practice Mode to unlock Testing Mode.
       </Modal>
-      <PickedSkillModal picked={picked} onClose={onClosePicked} onStart={onStartScoped} />
+      <PickedSkillModal picked={picked} onClose={onClosePicked} onStart={(m) => sceneFx.whoosh(picked.id, () => onStartScoped(m))} />
     </>
   );
 }
@@ -133,7 +135,7 @@ export function MenuScreen({ user, curr, stats, ui, actions }) {
     <Screen>
       <Header onReset={actions.reset} userName={user.name} menuLabel="Home" />
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-4">
-        <BrandBadge size={36} className="-mb-1" />
+        <Wordmark className="-mb-1" />
         <div className="flex flex-col items-center text-center">
           <Welcome user={user} />
           <h1 className="text-hero text-neon-cyan text-glow">Choose Your Mission</h1>

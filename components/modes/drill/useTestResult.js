@@ -1,4 +1,5 @@
 import { triggerFireworks } from '../../../lib/fireworks';
+import { gameFx } from '../../../lib/gameFx';
 import { recordStreak } from '../../../lib/bestStreak';
 
 const CORRECT_PAUSE_MS = 900;
@@ -25,6 +26,7 @@ export function useTestResult(ctx) {
       timer.current = setTimeout(() => { setAnswer(''); setStatus(null); setIndex((i) => i + 1); }, CORRECT_PAUSE_MS);
       return;
     }
+    gameFx.emit('mastered');
     try { triggerFireworks({ duration: 2200, particles: 260 }); } catch (_) {}
     timer.current = setTimeout(finishPass, CORRECT_PAUSE_MS);
   };

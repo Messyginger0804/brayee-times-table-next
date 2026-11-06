@@ -2,6 +2,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useFeedback } from './gif/GifProvider';
+import { useSceneKind } from '../lib/sceneFx';
 import { CenterScreen } from './modes/shared/GateViews';
 import { SkillBlocked, SkillPlay } from './modes/shared/SkillView';
 import { useAuthUser, useLoginRedirect } from './modes/shared/useAuthUser';
@@ -13,6 +14,7 @@ export default function SkillMode({ skillId }) {
   const { status: authStatus } = useSession();
   const router = useRouter();
   const feedback = useFeedback();
+  useSceneKind('game');
   const [user] = useAuthUser(authStatus);
   useLoginRedirect(authStatus);
   const { skill, levelIndex, setLevelIndex, prog, setProg, levelRef } = useSkillLoader(user, skillId);

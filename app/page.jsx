@@ -14,6 +14,29 @@ import { useHomeData } from '../components/modes/shared/useHomeData';
 import { makePickMission, testingStats } from '../components/modes/shared/homeLogic';
 import CadetWelcome, { useCadetWelcome } from '../components/CadetWelcome';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useSceneKind } from '../lib/sceneFx';
+
+/** Re-fetch everything the menu shows (no-op until signed in). */
+function refreshHome(user, data) {
+  if (!user) return;
+  data.fetchMissions();
+  data.fetchProblems();
+  data.fetchAllAttemptSummaries();
+  data.fetchProgressSummary();
+}
+
+/** Back to the menu: clear the mode and scoped mission, then refresh what the menu shows. */
+const makeResetGame = ({ user, data, setMode, setScopedSkill }) => () => {
+  setMode(null);
+  setScopedSkill(null);
+  refreshHome(user, data);
+};
+
+/** Tells the shared 3D canvas which screen is up (a component, so AppInner's hook count stays put). */
+function SceneKind({ mode }) {
+  useSceneKind(mode ? 'game' : 'home');
+  return null;
+}
 
 function LoadingView({ loading }) {
   return (
@@ -69,15 +92,7 @@ function AppInner() {
   const pickMission = makePickMission(router, setPickedSkill);
   const startScoped = (m) => { setScopedSkill(pickedSkill.id); setPickedSkill(null); setMode(m); };
 
-  const resetGame = () => {
-    setMode(null);
-    setScopedSkill(null);
-    if (!user) return;
-    fetchMissions();
-    fetchProblems();
-    data.fetchAllAttemptSummaries();
-    data.fetchProgressSummary();
-  };
+  const resetGame = makeResetGame({ user, data, setMode, setScopedSkill });
 
   if (loading || !user || problemsLoading) return <LoadingView loading={loading || !user} />;
 
@@ -88,6 +103,7 @@ function AppInner() {
 
   return (
     <>
+      <SceneKind mode={mode} />
       <AnimatePresence mode="wait">{content}</AnimatePresence>
       <CadetWelcome welcome={cadetWelcome} onClose={closeCadetWelcome} />
     </>
