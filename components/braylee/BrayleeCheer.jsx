@@ -14,33 +14,13 @@
  *           mute toggle, and never goes over Spelling Bee speech). Default false.
  *   className  extra classes on the wrapper.
  * The line is picked after mount (no hydration mismatch) and stays stable until `moment`, `n`, `name` or `line` change.
- *
- * <BrayleeFace size alt className /> is only the circular photo (host avatar, emoji fallback), for small spots.
  */
 import { useEffect, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import Astronaut from '../space/Astronaut';
-import { useAvatarSrc } from '../space/AstronautHelmet';
 import { SpeechBubble } from '../game/HostAstronaut';
 import { pickLine } from '../../config/brayleeLines';
 import { speakBigCheer } from '../../lib/cheerVoice';
-
-export function BrayleeFace({ size = 40, alt = 'Braylee', className = '' }) {
-  const src = useAvatarSrc(size, true);
-  return (
-    <span
-      className={`inline-block shrink-0 overflow-hidden rounded-full border-2 border-neon-cyan bg-space-700 shadow-glow-cyan ${className}`}
-      style={{ width: size, height: size }}
-    >
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={alt} className="h-full w-full object-cover" style={{ objectPosition: '50% 40%' }} />
-      ) : (
-        <span role="img" aria-label={alt} className="flex h-full w-full items-center justify-center" style={{ fontSize: size * 0.55 }}>👩‍🚀</span>
-      )}
-    </span>
-  );
-}
 
 export default function BrayleeCheer({ moment = 'idle', n, name, pose = 'welcome', size = 120, layout = 'stack', line, speak = false, className = '' }) {
   const reduce = useReducedMotion();

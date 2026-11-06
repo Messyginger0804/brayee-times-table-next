@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import BrayleeCheer from './braylee/BrayleeCheer';
 import { missionAction } from './modes/shared/homeLogic';
 import { sceneFx, useSceneState } from '../lib/sceneFx';
 
@@ -17,28 +16,6 @@ function missionStates(skills) {
     ...s,
     state: s.mastered ? 'mastered' : !s.unlocked ? 'locked' : i === firstOpen ? 'current' : 'open',
   }));
-}
-
-/** Who gets the buddy: the current (first open, unmastered) mission, 'done' when all are mastered, else nothing. */
-export function buddyFor(list) {
-  const next = list.find((s) => s.state === 'current');
-  if (next) return { kind: 'next', id: next.id };
-  return list.length && list.every((s) => s.state === 'mastered') ? { kind: 'done' } : null;
-}
-
-function MapBuddy({ buddy }) {
-  const reduce = useReducedMotion();
-  if (!buddy) return null;
-  return (
-    <motion.div
-      aria-hidden="true"
-      className="pointer-events-none mb-2 flex items-center px-1"
-      animate={reduce ? { y: 0 } : { y: [0, -4, 0] }}
-      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-    >
-      <BrayleeCheer layout="row" size={56} pose="idle" moment={buddy.kind === 'next' ? 'mapNudge' : 'idle'} className="w-full" />
-    </motion.div>
-  );
 }
 
 function progressText(s) {
@@ -139,7 +116,6 @@ export default function MissionMap({ grade, skills, onPick }) {
   for (let i = 0; i < list.length; i += COLS) {
     rows.push(Array.from({ length: COLS }, (_, k) => (list[i + k] ? { s: list[i + k], idx: i + k } : null)));
   }
-  const buddy = buddyFor(list);
   const done = list.filter((s) => s.state === 'mastered').length;
   return (
     <section aria-labelledby="missions-h" className="w-full max-w-md">
@@ -148,7 +124,6 @@ export default function MissionMap({ grade, skills, onPick }) {
         <span className="text-body text-ink-dim">{done}/{list.length} done</span>
       </div>
       <MapPanel>
-        <MapBuddy buddy={buddy} />
         {rows.map((row, r) => {
           const rtl = r % 2 === 1;
           const used = row.filter(Boolean).length;

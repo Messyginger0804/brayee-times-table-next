@@ -1,13 +1,14 @@
 "use client";
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Header from '../../Header';
 import LevelIndicator from '../../LevelIndicator';
 import MissionMap from '../../MissionMap';
 import GradePicker, { ordinal } from '../../GradePicker';
 import AstronautStage from '../../game/AstronautStage';
-import Wordmark from '../../braylee/Wordmark';
 import BrayleeCheer from '../../braylee/BrayleeCheer';
-import HostAstronaut, { HOST_WELCOME, HOST_LINES } from '../../game/HostAstronaut';
+import HostAstronaut, { HOST_WELCOME, HOST_LINES, SpeechBubble } from '../../game/HostAstronaut';
+import { pickLine } from '../../../config/brayleeLines';
 import Screen, { GlassCard } from '../../ui/Screen';
 import Button from '../../ui/Button';
 import Modal from '../../ui/Modal';
@@ -38,13 +39,19 @@ export function GradeGate({ onPicked }) {
   );
 }
 
+/** Braylee's own home: her photo is already in the header, so she gets just the greeting bubble, no second face. */
+function OwnWelcome({ name }) {
+  const [line, setLine] = useState('');
+  useEffect(() => setLine(pickLine('welcomeBack', { name })), [name]);
+  return <SpeechBubble text={line} tail="none" className="mb-2 w-full max-w-[19rem]" />;
+}
+
+/** Guests get the one host astronaut; her rotating lines ("Pick a mission, Cadet!") live in her bubble. */
 function Welcome({ user }) {
   if (user.isGuest) {
-    return <HostAstronaut size={92} layout="row" storageKey="host-welcomed" lines={[HOST_WELCOME, ...HOST_LINES]} className="mb-3 w-full max-w-sm" />;
+    return <HostAstronaut size={92} layout="row" storageKey="host-welcomed" lines={[HOST_WELCOME, ...HOST_LINES]} className="mb-2 w-full max-w-sm" />;
   }
-  return (
-    <BrayleeCheer moment="welcomeBack" name={user.name} size={132} className="mb-3" />
-  );
+  return <OwnWelcome name={user.name} />;
 }
 
 function TestingTile({ stats, onTest, onLocked }) {
@@ -133,13 +140,12 @@ export function MenuScreen({ user, curr, stats, ui, actions }) {
   const grade = curr?.grade;
   return (
     <Screen>
-      <Header onReset={actions.reset} userName={user.name} menuLabel="Home" />
-      <div className="flex flex-1 flex-col items-center justify-center gap-5 py-4">
-        <Wordmark className="-mb-1" />
+      <Header onReset={actions.reset} userName={user.name} menuLabel="Home" photo={!user.isGuest} />
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2">
         <div className="flex flex-col items-center text-center">
           <Welcome user={user} />
           <h1 className="text-hero text-neon-cyan text-glow">Choose Your Mission</h1>
-          <div className="mt-2"><LevelIndicator level={user.level} /></div>
+          <div className="mt-1"><LevelIndicator level={user.level} /></div>
         </div>
         {grade ? <MissionMap grade={grade} skills={curr.skills} onPick={actions.pickMission} /> : null}
         {grade ? <h2 className="-mb-2 text-title text-neon-cyan">More games</h2> : null}

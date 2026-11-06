@@ -30,9 +30,9 @@ export function useAvatarSrc(size = 160, host = false, enabled = true) {
   return enabled ? src : null;
 }
 
-function AstronautHelmet({ size = 96, float = true, className = '' }) {
+function AstronautHelmet({ size = 96, float = true, photo = true, className = '' }) {
   const reduce = useReducedMotion();
-  const src = useAvatarSrc(size);
+  const src = useAvatarSrc(size, false, photo);
 
   const animate = float && !reduce;
   return (

@@ -20,7 +20,7 @@ export function loginLayout(aspect, phone) {
 function homeLayout(aspect, phone) {
   if (phone) return null;
   const { w, h } = halfAt(LOGIN_Z, aspect);
-  return { x: -w * 0.8, y: -h * 0.25, z: LOGIN_Z, r: Math.min(1.1, h * 0.3) };
+  return { x: -w * 0.82, y: -h * 0.25, z: LOGIN_Z, r: Math.min(0.7, h * 0.19) };
 }
 
 /** Additive soft glow disc around a body. */
