@@ -1,6 +1,4 @@
 "use client";
-import axios from 'axios';
-import { signOut } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import Header from '../../Header';
 import LevelIndicator from '../../LevelIndicator';
@@ -86,11 +84,6 @@ function ModeTiles({ stats, onMode, onLocked }) {
   );
 }
 
-async function logout() {
-  try { await axios.post('/api/auth/logout', {}, { withCredentials: true }); } catch (_) {}
-  await signOut({ callbackUrl: '/login' });
-}
-
 function PickedSkillModal({ picked, onClose, onStart }) {
   const locked = !!picked?.locked;
   const actions = locked ? (
@@ -154,7 +147,6 @@ export function MenuScreen({ user, curr, stats, ui, actions }) {
             <span aria-hidden="true">🎓</span> {ordinal(grade)} grade · Change
           </Button>
         ) : null}
-        <Button tone="ghost" onClick={logout}>{user.isGuest ? 'Sign out' : 'Logout'}</Button>
       </div>
       <MenuModals
         curr={curr}
