@@ -7,7 +7,7 @@ export function useDrillTimer(feedback) {
   const timer = useRef(null);
   useEffect(() => {
     const ref = timer;
-    feedback.startSession();
+    feedback.startSession({ intro: true }); // Ready-set-go covers the board; nothing else starts on mount
     return () => clearTimeout(ref.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
