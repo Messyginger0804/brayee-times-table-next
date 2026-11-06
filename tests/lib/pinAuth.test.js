@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import bcrypt from 'bcryptjs';
 
-vi.mock('../../lib/prisma', () => ({ prisma: { user: { findUnique: vi.fn(), update: vi.fn() } } }));
+vi.mock('../../lib/prisma', () => ({ prisma: { user: { findUnique: vi.fn(), update: vi.fn() }, $queryRaw: vi.fn() } }));
 import { prisma } from '../../lib/prisma';
 import { verifyPin } from '../../lib/pinAuth';
 
@@ -10,13 +10,20 @@ const HASH = bcrypt.hashSync('1234', 4);
 const user = (o = {}) => ({ id: 7, name: 'Kid', isGuest: false, pin: HASH, failedLoginAttempts: 0, lockedUntil: null, level: 1, ...o });
 const inSeconds = (s) => new Date(NOW.getTime() + s * 1000);
 
-/** In-memory single-row store behind the mocked prisma; applies {increment} like Prisma does. */
+/** In-memory single-row store behind the mocked prisma. $queryRaw emulates the conditional UPDATE in claimAttempt (count + lock in one step). */
 function store(initial) {
   const row = initial && { ...initial };
-  prisma.user.findUnique.mockImplementation(async ({ where }) => (row && row.name === where.name ? { ...row } : null));
+  prisma.user.findUnique.mockImplementation(async ({ where }) => (row && (row.name === where.name || row.id === where.id) ? { ...row } : null));
   prisma.user.update.mockImplementation(async ({ data }) => {
     for (const [k, v] of Object.entries(data)) row[k] = v && typeof v === 'object' && 'increment' in v ? row[k] + v.increment : v;
     return { ...row };
+  });
+  prisma.$queryRaw.mockImplementation(async () => {
+    if (!row || (row.lockedUntil && row.lockedUntil.getTime() > Date.now())) return [];
+    const n = ++row.failedLoginAttempts;
+    const secs = n >= 15 ? 1800 : n >= 10 ? 300 : n >= 5 ? 60 : 0;
+    row.lockedUntil = secs ? new Date(Date.now() + secs * 1000) : null;
+    return [{ fails: n }];
   });
   return row;
 }
@@ -59,16 +66,17 @@ describe('verifyPin lookup', () => {
   it.each([[null], ['']])('stored pin %j never matches and counts as a failure', async (pin) => {
     store(user({ pin }));
     expect(await verifyPin('Kid', '1234')).toMatchObject({ ok: false, status: 401 });
-    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 7 }, data: { failedLoginAttempts: { increment: 1 } } });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.user.update).not.toHaveBeenCalled();
   });
 });
 
 describe('verifyPin hashed pins', () => {
-  it('accepts the correct pin without writing when there is nothing to reset', async () => {
+  it('accepts the correct pin and always resets the counter/lock (the attempt was already claimed)', async () => {
     store(user());
     const r = await verifyPin('Kid', '1234');
     expect(r).toMatchObject({ ok: true, user: { id: 7 } });
-    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 7 }, data: { failedLoginAttempts: 0, lockedUntil: null } });
   });
 
   it('accepts $2y$ prefixed hashes', async () => {
@@ -83,11 +91,12 @@ describe('verifyPin hashed pins', () => {
     expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 7 }, data: { failedLoginAttempts: 0, lockedUntil: null } });
   });
 
-  it('wrong pin returns 401 and increments the counter', async () => {
-    store(user());
+  it('wrong pin returns 401 and the attempt is counted by the atomic claim', async () => {
+    const row = store(user());
     expect(await verifyPin('Kid', '9999')).toEqual({ ok: false, status: 401, error: 'Invalid name or PIN' });
-    expect(prisma.user.update).toHaveBeenCalledTimes(1);
-    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 7 }, data: { failedLoginAttempts: { increment: 1 } } });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(row.failedLoginAttempts).toBe(1);
+    expect(prisma.user.update).not.toHaveBeenCalled();
   });
 });
 
@@ -98,7 +107,7 @@ describe('verifyPin legacy plaintext pins', () => {
     expect(prisma.user.update).toHaveBeenCalledTimes(1);
     const { where, data } = prisma.user.update.mock.calls[0][0];
     expect(where).toEqual({ id: 7 });
-    expect(Object.keys(data)).toEqual(['pin']);
+    expect(data).toMatchObject({ failedLoginAttempts: 0, lockedUntil: null });
     expect(data.pin).toMatch(/^\$2[aby]\$/);
     expect(await bcrypt.compare('1234', data.pin)).toBe(true);
   });
@@ -114,7 +123,7 @@ describe('verifyPin legacy plaintext pins', () => {
   it('a wrong guess against a plaintext pin does not upgrade or leak', async () => {
     store(user({ pin: '1234' }));
     expect(await verifyPin('Kid', '0000')).toMatchObject({ ok: false, status: 401 });
-    expect(prisma.user.update.mock.calls[0][0].data).toEqual({ failedLoginAttempts: { increment: 1 } });
+    expect(prisma.user.update).not.toHaveBeenCalled(); // counted by the atomic claim, no upgrade
   });
 
   it('after the upgrade the old plaintext no longer short-circuits: hash is verified', async () => {
@@ -138,6 +147,7 @@ describe('verifyPin lockout', () => {
   });
 
   it('while locked, even the correct pin is refused and nothing is written', async () => {
+    // the conditional claim matches no row while locked; the 429 comes from the lockedUntil read
     store(user({ failedLoginAttempts: 5, lockedUntil: inSeconds(30) }));
     const r = await verifyPin('Kid', '1234');
     expect(r).toEqual({ ok: false, status: 429, error: "Let's take a short break! Try again in 30 seconds.", retryAfter: 30 });
@@ -161,14 +171,14 @@ describe('verifyPin lockout', () => {
     expect((await verifyPin('Kid', '1234')).ok).toBe(true);
     expect(row.failedLoginAttempts).toBe(0);
     expect(row.lockedUntil).toBeNull();
-    expect(prisma.user.update).toHaveBeenCalledTimes(1); // the reset only; success has nothing more to write
+    expect(prisma.user.update).toHaveBeenCalledTimes(1); // the success reset
   });
 
-  it('after the cooldown a wrong pin starts counting from 1 again, not from 5', async () => {
+  it('after the cooldown a wrong pin keeps counting (no fresh start) and re-locks at once', async () => {
     const row = store(user({ failedLoginAttempts: 5, lockedUntil: inSeconds(-5) }));
-    expect(await verifyPin('Kid', '9999')).toMatchObject({ status: 401 });
-    expect(row.failedLoginAttempts).toBe(1);
-    expect(row.lockedUntil).toBeNull();
+    expect(await verifyPin('Kid', '9999')).toMatchObject({ status: 429, retryAfter: 60 });
+    expect(row.failedLoginAttempts).toBe(6);
+    expect(row.lockedUntil).toEqual(inSeconds(60));
   });
 
   it('full cycle: lock, stay locked, then recover once the clock passes the cooldown', async () => {

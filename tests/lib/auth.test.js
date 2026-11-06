@@ -22,7 +22,7 @@ describe('PIN provider authorize', () => {
   it('returns a minimal user (string id, no pin) on success', async () => {
     verifyPin.mockResolvedValue({ ok: true, user: { id: 5, name: 'K', image: 'i', pin: 'HASH', level: 2 } });
     expect(await pinAuthorize({ name: 'K', pin: '1234' })).toEqual({ id: '5', name: 'K', image: 'i' });
-    expect(verifyPin).toHaveBeenCalledWith('K', '1234');
+    expect(verifyPin).toHaveBeenCalledWith('K', '1234', { ip: 'unknown' });
   });
   it('null for ordinary failures', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'Invalid name or PIN' });
@@ -35,7 +35,7 @@ describe('PIN provider authorize', () => {
   it('passes undefined through when credentials are missing', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 400, error: 'x' });
     expect(await pinAuthorize(undefined)).toBeNull();
-    expect(verifyPin).toHaveBeenCalledWith(undefined, undefined);
+    expect(verifyPin).toHaveBeenCalledWith(undefined, undefined, { ip: 'unknown' });
   });
 });
 
