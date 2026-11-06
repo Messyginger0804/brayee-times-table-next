@@ -22,7 +22,12 @@ describe('PIN provider authorize', () => {
   it('returns a minimal user (string id, no pin) on success', async () => {
     verifyPin.mockResolvedValue({ ok: true, user: { id: 5, name: 'K', image: 'i', pin: 'HASH', level: 2 } });
     expect(await pinAuthorize({ name: 'K', pin: '1234' })).toEqual({ id: '5', name: 'K', image: 'i' });
-    expect(verifyPin).toHaveBeenCalledWith('K', '1234', { ip: 'unknown' });
+    expect(verifyPin).toHaveBeenCalledWith('K', '1234', { ip: 'unknown', deviceToken: null });
+  });
+  it('passes the trusted-device cookie through to verifyPin', async () => {
+    verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'x' });
+    await pinAuthorize({ name: 'K', pin: '1234' }, { headers: { cookie: 'a=b; device_trust=tok.en; c=d', 'x-forwarded-for': '1.2.3.4' } });
+    expect(verifyPin).toHaveBeenCalledWith('K', '1234', { ip: '1.2.3.4', deviceToken: 'tok.en' });
   });
   it('null for ordinary failures', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'Invalid name or PIN' });
@@ -35,7 +40,7 @@ describe('PIN provider authorize', () => {
   it('passes undefined through when credentials are missing', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 400, error: 'x' });
     expect(await pinAuthorize(undefined)).toBeNull();
-    expect(verifyPin).toHaveBeenCalledWith(undefined, undefined, { ip: 'unknown' });
+    expect(verifyPin).toHaveBeenCalledWith(undefined, undefined, { ip: 'unknown', deviceToken: null });
   });
 });
 
