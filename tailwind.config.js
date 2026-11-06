@@ -68,10 +68,8 @@ module.exports = {
         'space-gradient': 'radial-gradient(120% 80% at 50% 0%, #2a1a6e 0%, #121a4a 38%, #050816 100%)',
         'glass': 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))',
       },
-      keyframes: {
-        twinkle: { '0%,100%': { opacity: '0.35' }, '50%': { opacity: '1' } },
-        'star-drift': { from: { transform: 'translate3d(0,0,0)' }, to: { transform: 'translate3d(0,200px,0)' } },
-      },
+      // keyframes (twinkle, star-drift) live in app/globals.css: Tailwind only emits
+      // config keyframes when an animate-* utility is used, and the star layers use plain CSS.
       animation: {
         twinkle: 'twinkle 3.2s ease-in-out infinite',
       },

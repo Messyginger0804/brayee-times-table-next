@@ -58,6 +58,14 @@ input, select, textarea {
   background-repeat: repeat;
   will-change: transform;
 }
+@keyframes twinkle {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes star-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 200px, 0); }
+}
 .stars-a {
   background-image:
     radial-gradient(1.5px 1.5px at 20px 30px, #fff, transparent 60%),
