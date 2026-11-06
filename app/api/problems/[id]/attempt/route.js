@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
-import { getUserId } from '../../../_utils';
+import { requireProblemRequest } from '../../../_utils';
 import { MASTERY_STREAK, isMastered } from '../../../../../lib/mastery';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req, { params }) {
-  const userId = await getUserId();
-  if (!userId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
-  const problemId = parseInt(params.id, 10);
-  if (!Number.isInteger(problemId)) return NextResponse.json({ error: 'Invalid problem id' }, { status: 400 });
+  const { userId, problemId, error } = await requireProblemRequest(params);
+  if (error) return error;
   const { correct } = await req.json().catch(() => ({}));
   if (typeof correct !== 'boolean') return NextResponse.json({ error: 'Missing boolean `correct`' }, { status: 400 });
   try {

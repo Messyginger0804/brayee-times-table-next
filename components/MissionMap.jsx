@@ -7,7 +7,7 @@ const shortName = (n) => n.replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, ' ').tri
 const ordinal = (g) => ({ 1: '1st', 2: '2nd', 3: '3rd' }[g] || `${g}th`);
 
 /** current = first open, unmastered mission. */
-export function missionStates(skills) {
+function missionStates(skills) {
   const firstOpen = skills.findIndex((s) => s.unlocked && !s.mastered);
   return skills.map((s, i) => ({
     ...s,
@@ -22,14 +22,45 @@ function progressText(s) {
   return `Level ${s.levelIndex + 1} of ${s.levelCount}`;
 }
 
+const RING = {
+  current: 'border-neon-amber shadow-glow-amber',
+  mastered: 'border-neon-lime shadow-glow-lime',
+  locked: 'border-white/15',
+  open: 'border-neon-cyan shadow-glow-cyan',
+};
+
+function levelFraction(s) {
+  if (s.state === 'mastered') return 1;
+  const p = s.progress;
+  const within = p?.levelNeed ? Math.min(1, p.levelHave / p.levelNeed) : 0;
+  return (s.levelIndex + within) / s.levelCount;
+}
+
+function progressFraction(s) {
+  if (s.source !== 'problems') return levelFraction(s);
+  return s.problems?.total ? s.problems.mastered / s.problems.total : 0;
+}
+
+function PlanetOrb({ state, emoji, reduce }) {
+  const locked = state === 'locked';
+  return (
+    <motion.span
+      aria-hidden="true"
+      animate={state === 'current' && !reduce ? { y: [0, -5, 0] } : { y: 0 }}
+      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+      className={`relative flex h-16 w-16 items-center justify-center rounded-full border-2 bg-space-800 text-[2rem] ${RING[state]} ${locked ? 'grayscale' : ''}`}
+    >
+      <span className={locked ? 'opacity-40' : ''}>{emoji}</span>
+      {locked && <span className="absolute text-xl">🔒</span>}
+      {state === 'mastered' && <span className="absolute -right-1 -top-1 text-xl">⭐</span>}
+    </motion.span>
+  );
+}
+
 function Planet({ s, idx, onPick }) {
   const reduce = useReducedMotion();
   const locked = s.state === 'locked';
-  const ring = s.state === 'current' ? 'border-neon-amber shadow-glow-amber'
-    : s.state === 'mastered' ? 'border-neon-lime shadow-glow-lime'
-    : locked ? 'border-white/15' : 'border-neon-cyan shadow-glow-cyan';
-  const frac = s.source === 'problems' ? (s.problems?.total ? s.problems.mastered / s.problems.total : 0)
-    : s.state === 'mastered' ? 1 : (s.levelIndex + (s.progress?.levelNeed ? Math.min(1, s.progress.levelHave / s.progress.levelNeed) : 0)) / s.levelCount;
+  const frac = progressFraction(s);
   const name = shortName(s.name);
   return (
     <li className="relative z-10 flex justify-center" style={{ direction: 'ltr' }}>
@@ -40,16 +71,7 @@ function Planet({ s, idx, onPick }) {
         aria-label={`${name}. ${progressText(s)}${s.state === 'current' ? '. Next mission' : ''}`}
         className="flex min-h-[7.25rem] w-full flex-col items-center gap-1 rounded-chunk px-1 py-1 text-center"
       >
-        <motion.span
-          aria-hidden="true"
-          animate={s.state === 'current' && !reduce ? { y: [0, -5, 0] } : { y: 0 }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          className={`relative flex h-16 w-16 items-center justify-center rounded-full border-2 bg-space-800 text-[2rem] ${ring} ${locked ? 'grayscale' : ''}`}
-        >
-          <span className={locked ? 'opacity-40' : ''}>{PLANETS[idx % PLANETS.length]}</span>
-          {locked && <span className="absolute text-xl">🔒</span>}
-          {s.state === 'mastered' && <span className="absolute -right-1 -top-1 text-xl">⭐</span>}
-        </motion.span>
+        <PlanetOrb state={s.state} emoji={PLANETS[idx % PLANETS.length]} reduce={reduce} />
         <span className={`line-clamp-2 text-sm font-bold leading-tight ${locked ? 'text-ink-dim' : 'text-ink'}`}>{name}</span>
         <span className="h-1.5 w-12 overflow-hidden rounded-full bg-space-700" aria-hidden="true">
           <span className={`block h-full rounded-full ${s.state === 'mastered' ? 'bg-neon-lime' : 'bg-neon-amber'}`} style={{ width: `${Math.round(frac * 100)}%` }} />

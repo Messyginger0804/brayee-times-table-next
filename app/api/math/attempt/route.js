@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
-import { getSkill, getLibrarySkill, isProblemSkill, evaluateWindow, WINDOW_DEFAULT, LEVEL_ADVANCE_WINDOW } from '../../../../lib/mathSkills';
+import { getSkillSummary, getLibrarySkill, isProblemSkill, evaluateWindow, WINDOW_DEFAULT, LEVEL_ADVANCE_WINDOW } from '../../../../lib/mathSkills';
 import { checkAnswer } from '../../../../lib/curriculum/math/index.js';
 import { requireUserId } from '../../_utils';
 
@@ -36,7 +36,7 @@ export async function POST(req) {
   if (uid instanceof NextResponse) return uid;
   let b;
   try { b = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
-  const skill = getSkill(b?.skillId);
+  const skill = getSkillSummary(b?.skillId);
   if (!skill) return NextResponse.json({ error: 'Unknown skillId' }, { status: 400 });
   if (isProblemSkill(skill.id)) {
     return NextResponse.json({ error: 'This skill is tracked with the times-table problems (/api/problems/[id]/attempt)' }, { status: 400 });

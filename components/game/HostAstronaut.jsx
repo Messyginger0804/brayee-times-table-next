@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import Astronaut, { POSE_MS } from '../space/Astronaut';
 
-export const HOST_ALT = "Braylee, the app's host";
+const HOST_ALT = "Braylee, the app's host";
 export const HOST_WELCOME = 'Hey! Welcome to my learning app! I use this to be sooo smart! 🚀✨';
 export const HOST_LINES = ['Pick a mission, Cadet!', "You're gonna be sooo smart too!", 'Ready when you are, Cadet! 🚀'];
 

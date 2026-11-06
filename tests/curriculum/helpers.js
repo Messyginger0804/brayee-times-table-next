@@ -2,7 +2,7 @@
 // Nothing here imports generator code: answers are recomputed from the prompt text.
 import assert from 'node:assert/strict';
 
-export const un = (s) => s.replace(/×/g, 'x').replace(/÷/g, '/').replace(/−/g, '-');
+const un = (s) => s.replace(/×/g, 'x').replace(/÷/g, '/').replace(/−/g, '-');
 const COIN_WORD = { penny: 'penny', nickel: 'nickel', dime: 'dime', quarter: 'quarter' };
 
 export function plainFromParts(parts) {
@@ -31,13 +31,13 @@ export function plainFromParts(parts) {
     .join('');
 }
 
-export const num = (s) => Number(String(s).replace(/,/g, '').replace(/[()]/g, ''));
-export const nums = (s) => (s.replace(/,/g, '').match(/\d+(?:\.\d+)?/g) || []).map(Number);
+const num = (s) => Number(String(s).replace(/,/g, '').replace(/[()]/g, ''));
+const nums = (s) => (s.replace(/,/g, '').match(/\d+(?:\.\d+)?/g) || []).map(Number);
 export const lhs = (prompt) => prompt.replace(/ = __.*$/, '');
-export const digitsOf = (n) => String(n).split('').map(Number).reverse(); // least significant first
-export const places = (s) => (String(s).split('.')[1] || '').length;
+const digitsOf = (n) => String(n).split('').map(Number).reverse(); // least significant first
+const places = (s) => (String(s).split('.')[1] || '').length;
 
-export function carries(a, b) {
+function carries(a, b) {
   const x = digitsOf(a);
   const y = digitsOf(b);
   let c = 0;
@@ -49,7 +49,7 @@ export function carries(a, b) {
   }
   return c;
 }
-export function borrows(a, b) {
+function borrows(a, b) {
   const x = digitsOf(a);
   const y = digitsOf(b);
   let c = 0;
@@ -65,7 +65,7 @@ export function borrows(a, b) {
 }
 
 /** Evaluate an arithmetic prompt left-hand side with JS as the independent calculator. */
-export function evalExpr(left) {
+function evalExpr(left) {
   let s = left.replace(/,/g, '');
   s = s.replace(/\|([^|]+)\|/g, 'Math.abs($1)');
   s = s.replace(/(\d+) (\d+)\/(\d+)/g, '(($1)+($2)/($3))');
@@ -84,128 +84,99 @@ function roundHalfUp(n, step) {
 }
 const gcdT = (a, b) => (b ? gcdT(b, a % b) : Math.abs(a));
 
-/** Expected answer: { num } (numeric) or { str } (exact text). */
-export function oracle(p) {
-  const prompt = p.prompt.replace(/ \(simplest form\)$/, '');
-  const id = p.skillId;
-  let m;
-  // ----- word / special prompts -----
-  if ((m = /^What comes after (\d+)\?$/.exec(prompt))) return { num: +m[1] + 1 };
-  if ((m = /^What comes before (\d+)\?$/.exec(prompt))) return { num: +m[1] - 1 };
-  if (/^[\d, ]*__[\d, ]*$/.test(prompt) && /, /.test(prompt) && !/=/.test(prompt)) {
-    const t = prompt.split(', ');
-    if (id === 'g1-count-seq') {
-      const bi = t.indexOf('__');
-      const n = t.map((x) => (x === '__' ? NaN : num(x)));
-      return { num: bi === 0 ? n[1] - 1 : bi === 1 ? n[0] + 1 : n[1] + 1 };
-    }
-    const n = t.slice(0, 3).map(num);
-    return { num: n[2] + (n[1] - n[0]) };
+/** Rule helper: when `re` matches the prompt, `fn(match)` gives the expected answer. */
+const rule = (re, fn) => (prompt) => {
+  const m = re.exec(prompt);
+  return m ? fn(m) : undefined;
+};
+const cmpSym = (l, r) => (l < r ? '<' : l > r ? '>' : '=');
+
+function isPrime(n) {
+  let prime = n > 1;
+  for (let d = 2; d < n; d++) if (n % d === 0) prime = false;
+  return prime;
+}
+function gcfOrLcm(kind, a, b) {
+  if (!(a >= 1 && b >= 1)) throw new Error(`GCF/LCM oracle needs positive integers, got ${a}, ${b}`);
+  if (kind === 'GCF') {
+    for (let d = Math.min(a, b); d >= 1; d--) if (a % d === 0 && b % d === 0) return { num: d };
   }
-  if ((m = /^10 (more|less) than (\d+) = __$/.exec(prompt))) return { num: +m[2] + (m[1] === 'more' ? 10 : -10) };
-  if ((m = /^(\d+) tens (\d+) ones = __$/.exec(prompt))) return { num: +m[1] * 10 + +m[2] };
-  if ((m = /^(\d+) hundreds (\d+) tens (\d+) ones = __$/.exec(prompt))) return { num: +m[1] * 100 + +m[2] * 10 + +m[3] };
-  if ((m = /^How many tens in (\d+)\?$/.exec(prompt))) return { num: Math.floor(+m[1] / 10) };
-  if ((m = /^What is the value of the (\d) in (\d+)\? __$/.exec(prompt))) {
-    const idx = m[2].indexOf(m[1]);
-    return { num: +m[1] * 10 ** (m[2].length - 1 - idx) };
+  for (let v = Math.max(a, b); ; v++) if (v % a === 0 && v % b === 0) return { num: v };
+}
+function smallestMultiple(step, above) {
+  let v = above + 1;
+  while (v % step !== 0) v++;
+  return { num: v };
+}
+function estimate(m) {
+  const step = num(m[4]);
+  const a = roundHalfUp(num(m[1]), step);
+  const b = roundHalfUp(num(m[3]), step);
+  return { num: m[2] === '+' ? a + b : m[2] === '-' ? a - b : a * b };
+}
+const groupsOf = (m) => ({ num: +m[1] * +m[2] });
+
+/** "1, 2, __" style sequences. */
+function sequenceRule(prompt, p) {
+  if (!(/^[\d, ]*__[\d, ]*$/.test(prompt) && /, /.test(prompt) && !/=/.test(prompt))) return undefined;
+  const t = prompt.split(', ');
+  if (p.skillId === 'g1-count-seq') {
+    const bi = t.indexOf('__');
+    const n = t.map((x) => (x === '__' ? NaN : num(x)));
+    return { num: bi === 0 ? n[1] - 1 : bi === 1 ? n[0] + 1 : n[1] + 1 };
   }
-  if ((m = /^(\d+) groups? of (\d+) = __$/.exec(prompt)) || (m = /^(\d+) rows? of (\d+) = __$/.exec(prompt))) return { num: +m[1] * +m[2] };
-  if ((m = /^([\d.]+) __ ([\d.]+)$/.exec(prompt))) return { str: +m[1] < +m[2] ? '<' : +m[1] > +m[2] ? '>' : '=' };
-  if ((m = /^(\d+)\/(\d+) __ (\d+)\/(\d+)$/.exec(prompt))) {
-    const l = +m[1] * +m[4];
-    const r = +m[3] * +m[2];
-    return { str: l < r ? '<' : l > r ? '>' : '=' };
+  const n = t.slice(0, 3).map(num);
+  return { num: n[2] + (n[1] - n[0]) };
+}
+
+function ratePerUnitRule(prompt) {
+  if (!/^\$?\d+ (?:\w+ )?(?:for|in) \d+ .*= __$/.test(prompt)) return undefined;
+  const m = /^\$?(\d+) (?:\w+ )?(?:for|in) (\d+) /.exec(prompt);
+  return { num: +m[1] / +m[2] };
+}
+
+/** Equations: brute-force the unknown. */
+function equationRule(prompt) {
+  if (!/, x = __$/.test(prompt)) return undefined;
+  const eqn = prompt.replace(/, x = __$/, '').replace(/(\d)x/g, '$1*x').replace(/ x /g, ' * x ');
+  const [l, r] = eqn.split(' = ');
+  const hits = [];
+  for (let x = 0; x <= 400; x++) {
+    // eslint-disable-next-line no-new-func
+    const f = Function('x', `return (${l.replace(/ \* x \*/g, ' * x ')}) === (${r});`);
+    if (f(x)) hits.push(x);
   }
-  if ((m = /^Is (\d+) even or odd\?$/.exec(prompt))) return { str: +m[1] % 2 === 0 ? 'even' : 'odd' };
-  if ((m = /^Is (\d+) prime or composite\?$/.exec(prompt))) {
-    const n = +m[1];
-    let prime = n > 1;
-    for (let d = 2; d < n; d++) if (n % d === 0) prime = false;
-    return { str: prime ? 'prime' : 'composite' };
+  assert.equal(hits.length, 1, `equation ${prompt}`);
+  return { num: hits[0] };
+}
+
+/** Coin / money totals. */
+function coinRule(prompt) {
+  if (!(/ (cents|= \$__)/.test(prompt) || /= \$__$/.test(prompt))) return undefined;
+  let total = 0;
+  for (const t of prompt.matchAll(/(\d+) (pennies|penny|nickels?|dimes?|quarters?)/g)) total += +t[1] * COIN_VAL[t[2]];
+  const bill = /\$(\d+) bill/.exec(prompt);
+  if (bill) total += +bill[1] * 100;
+  if (/1 dollar/.test(prompt)) total += 100;
+  return { num: /\$__$/.test(prompt) ? total / 100 : total };
+}
+
+/** Missing term / factor: brute-force the blank. */
+function missingTermRule(prompt) {
+  if (!(/__/.test(prompt.replace(/ = __$/, '')) || /__ x \d+ = \d+$/.test(prompt))) return undefined;
+  const [l, r] = prompt.replace(/ x /g, ' * ').split(' = ');
+  const hits = [];
+  for (let x = 0; x <= 100; x++) {
+    // eslint-disable-next-line no-new-func
+    if (Function('x', `return (${l.replace('__', 'x')}) === (${r});`)(x)) hits.push(x);
   }
-  if ((m = /^Is (\d+) a factor of (\d+)\?$/.exec(prompt))) return { str: +m[2] % +m[1] === 0 ? 'yes' : 'no' };
-  if ((m = /^Smallest multiple of (\d+) greater than (\d+) = __$/.exec(prompt))) {
-    let v = +m[2] + 1;
-    while (v % +m[1] !== 0) v++;
-    return { num: v };
-  }
-  if ((m = /^(GCF|LCM) of (\d+) and (\d+) = __$/.exec(prompt))) {
-    const a = +m[2];
-    const b = +m[3];
-    if (m[1] === 'GCF') {
-      for (let d = Math.min(a, b); d >= 1; d--) if (a % d === 0 && b % d === 0) return { num: d };
-    }
-    for (let v = Math.max(a, b); ; v++) if (v % a === 0 && v % b === 0) return { num: v };
-  }
-  if ((m = /^Round ([\d,]+) to the nearest (.+) = __$/.exec(prompt))) {
-    const step = /^\d+$/.test(m[2]) ? +m[2] : WORD_PLACE[m[2]];
-    return { num: roundHalfUp(num(m[1]), step) };
-  }
-  if ((m = /^Round ([\d.]+) to the nearest (tenth|hundredth) = __$/.exec(prompt))) {
-    const scaled = Math.round(+m[1] * 1000); // thousandths, exact for <= 3 places
-    const step = m[2] === 'tenth' ? 100 : 10;
-    return { num: roundHalfUp(scaled, step) / 1000 };
-  }
-  if ((m = /^Value of the (\d) in (\d+)\.(\d+) = __$/.exec(prompt))) {
-    return { num: +m[1] * 10 ** -(m[3].indexOf(m[1]) + 1) };
-  }
-  if ((m = /^Estimate ([\d,]+) ([+\-x]) ([\d,]+) \(nearest ([\d,]+)\) = __$/.exec(prompt))) {
-    const step = num(m[4]);
-    const a = roundHalfUp(num(m[1]), step);
-    const b = roundHalfUp(num(m[3]), step);
-    return { num: m[2] === '+' ? a + b : m[2] === '-' ? a - b : a * b };
-  }
-  if ((m = /^(\d+)% of (\d+) = __$/.exec(prompt))) return { num: (+m[1] * +m[2]) / 100 };
-  if ((m = /^(\d+)\/(\d+) = __ % \(nearest whole number\)$/.exec(prompt))) return { num: Math.round((100 * +m[1]) / +m[2]) };
-  if ((m = /^(\d+)\/(\d+) = __ %$/.exec(prompt))) return { num: (100 * +m[1]) / +m[2] };
-  if ((m = /^(\d?\.\d+) = __ %$/.exec(prompt))) return { num: Math.round(+m[1] * 10000) / 100 };
-  if ((m = /^(\d+)\/(\d+) as a decimal = __$/.exec(prompt))) return { num: +m[1] / +m[2] };
-  if ((m = /^([\d.]+) = __\/(\d+)$/.exec(prompt))) return { num: Math.round(+m[1] * +m[2]) };
-  if ((m = /^(\d+)\/(\d+) = __\/(\d+)$/.exec(prompt))) return { num: (+m[1] * +m[3]) / +m[2] };
-  if ((m = /^(\d+)\/(\d+) = (\d+)\/__$/.exec(prompt))) return { num: (+m[2] * +m[3]) / +m[1] };
-  if ((m = /^Which is greater, ([\d.]+) or ([\d.]+)\? __$/.exec(prompt))) return { num: Math.max(+m[1], +m[2]) };
-  if ((m = /^(\d+) : (\d+) = (\d+) : __$/.exec(prompt))) return { num: (+m[2] * +m[3]) / +m[1] };
-  if (/^\$?\d+ (?:\w+ )?(?:for|in) \d+ .*= __$/.test(prompt)) {
-    m = /^\$?(\d+) (?:\w+ )?(?:for|in) (\d+) /.exec(prompt);
-    return { num: +m[1] / +m[2] };
-  }
-  if ((m = /^Opposite of (-?\d+) = __$/.exec(prompt))) return { num: -+m[1] };
-  // equations: brute-force the unknown
-  if (/, x = __$/.test(prompt)) {
-    const eqn = prompt.replace(/, x = __$/, '').replace(/(\d)x/g, '$1*x').replace(/ x /g, ' * x ');
-    const [l, r] = eqn.split(' = ');
-    const hits = [];
-    for (let x = 0; x <= 400; x++) {
-      // eslint-disable-next-line no-new-func
-      const f = Function('x', `return (${l.replace(/ \* x \*/g, ' * x ')}) === (${r});`);
-      if (f(x)) hits.push(x);
-    }
-    assert.equal(hits.length, 1, `equation ${prompt}`);
-    return { num: hits[0] };
-  }
-  // coin / money totals
-  if (/ (cents|= \$__)/.test(prompt) || /= \$__$/.test(prompt)) {
-    let total = 0;
-    for (const t of prompt.matchAll(/(\d+) (pennies|penny|nickels?|dimes?|quarters?)/g)) total += +t[1] * COIN_VAL[t[2]];
-    const bill = /\$(\d+) bill/.exec(prompt);
-    if (bill) total += +bill[1] * 100;
-    if (/1 dollar/.test(prompt)) total += 100;
-    return { num: /\$__$/.test(prompt) ? total / 100 : total };
-  }
-  // missing term / factor: brute-force the blank
-  if (/__/.test(prompt.replace(/ = __$/, '')) || (/__ x \d+ = \d+$/.test(prompt))) {
-    const [l, r] = prompt.replace(/ x /g, ' * ').split(' = ');
-    const hits = [];
-    for (let x = 0; x <= 100; x++) {
-      // eslint-disable-next-line no-new-func
-      if (Function('x', `return (${l.replace('__', 'x')}) === (${r});`)(x)) hits.push(x);
-    }
-    assert.equal(hits.length, 1, `missing ${prompt}`);
-    return { num: hits[0] };
-  }
-  // ----- plain "<expr> = __" -----
-  m = /^(.*) = __(?: \(simplest form\))?$/.exec(prompt);
+  assert.equal(hits.length, 1, `missing ${prompt}`);
+  return { num: hits[0] };
+}
+
+/** Plain "<expr> = __" fallback. */
+function plainExprRule(prompt, p) {
+  const m = /^(.*) = __(?: \(simplest form\))?$/.exec(prompt);
   assert.ok(m, `no oracle for prompt: ${prompt}`);
   const left = m[1];
   const dm = /^([\d,]+) \/ (\d+)$/.exec(left);
@@ -215,6 +186,58 @@ export function oracle(p) {
     return { str: a % b ? `${Math.floor(a / b)} R ${a % b}` : `${a / b}` };
   }
   return { num: evalExpr(left) };
+}
+
+// Ordered: the first rule that recognises the prompt wins.
+const ORACLE_RULES = [
+  rule(/^What comes after (\d+)\?$/, (m) => ({ num: +m[1] + 1 })),
+  rule(/^What comes before (\d+)\?$/, (m) => ({ num: +m[1] - 1 })),
+  sequenceRule,
+  rule(/^10 (more|less) than (\d+) = __$/, (m) => ({ num: +m[2] + (m[1] === 'more' ? 10 : -10) })),
+  rule(/^(\d+) tens (\d+) ones = __$/, (m) => ({ num: +m[1] * 10 + +m[2] })),
+  rule(/^(\d+) hundreds (\d+) tens (\d+) ones = __$/, (m) => ({ num: +m[1] * 100 + +m[2] * 10 + +m[3] })),
+  rule(/^How many tens in (\d+)\?$/, (m) => ({ num: Math.floor(+m[1] / 10) })),
+  rule(/^What is the value of the (\d) in (\d+)\? __$/, (m) => ({ num: +m[1] * 10 ** (m[2].length - 1 - m[2].indexOf(m[1])) })),
+  rule(/^(\d+) groups? of (\d+) = __$/, groupsOf),
+  rule(/^(\d+) rows? of (\d+) = __$/, groupsOf),
+  rule(/^([\d.]+) __ ([\d.]+)$/, (m) => ({ str: cmpSym(+m[1], +m[2]) })),
+  rule(/^(\d+)\/(\d+) __ (\d+)\/(\d+)$/, (m) => ({ str: cmpSym(+m[1] * +m[4], +m[3] * +m[2]) })),
+  rule(/^Is (\d+) even or odd\?$/, (m) => ({ str: +m[1] % 2 === 0 ? 'even' : 'odd' })),
+  rule(/^Is (\d+) prime or composite\?$/, (m) => ({ str: isPrime(+m[1]) ? 'prime' : 'composite' })),
+  rule(/^Is (\d+) a factor of (\d+)\?$/, (m) => ({ str: +m[2] % +m[1] === 0 ? 'yes' : 'no' })),
+  rule(/^Smallest multiple of (\d+) greater than (\d+) = __$/, (m) => smallestMultiple(+m[1], +m[2])),
+  rule(/^(GCF|LCM) of (\d+) and (\d+) = __$/, (m) => gcfOrLcm(m[1], +m[2], +m[3])),
+  rule(/^Round ([\d,]+) to the nearest (.+) = __$/, (m) => ({ num: roundHalfUp(num(m[1]), /^\d+$/.test(m[2]) ? +m[2] : WORD_PLACE[m[2]]) })),
+  // thousandths are exact for <= 3 places
+  rule(/^Round ([\d.]+) to the nearest (tenth|hundredth) = __$/, (m) => ({ num: roundHalfUp(Math.round(+m[1] * 1000), m[2] === 'tenth' ? 100 : 10) / 1000 })),
+  rule(/^Value of the (\d) in (\d+)\.(\d+) = __$/, (m) => ({ num: +m[1] * 10 ** -(m[3].indexOf(m[1]) + 1) })),
+  rule(/^Estimate ([\d,]+) ([+\-x]) ([\d,]+) \(nearest ([\d,]+)\) = __$/, estimate),
+  rule(/^(\d+)% of (\d+) = __$/, (m) => ({ num: (+m[1] * +m[2]) / 100 })),
+  rule(/^(\d+)\/(\d+) = __ % \(nearest whole number\)$/, (m) => ({ num: Math.round((100 * +m[1]) / +m[2]) })),
+  rule(/^(\d+)\/(\d+) = __ %$/, (m) => ({ num: (100 * +m[1]) / +m[2] })),
+  rule(/^(\d?\.\d+) = __ %$/, (m) => ({ num: Math.round(+m[1] * 10000) / 100 })),
+  rule(/^(\d+)\/(\d+) as a decimal = __$/, (m) => ({ num: +m[1] / +m[2] })),
+  rule(/^([\d.]+) = __\/(\d+)$/, (m) => ({ num: Math.round(+m[1] * +m[2]) })),
+  rule(/^(\d+)\/(\d+) = __\/(\d+)$/, (m) => ({ num: (+m[1] * +m[3]) / +m[2] })),
+  rule(/^(\d+)\/(\d+) = (\d+)\/__$/, (m) => ({ num: (+m[2] * +m[3]) / +m[1] })),
+  rule(/^Which is greater, ([\d.]+) or ([\d.]+)\? __$/, (m) => ({ num: Math.max(+m[1], +m[2]) })),
+  rule(/^(\d+) : (\d+) = (\d+) : __$/, (m) => ({ num: (+m[2] * +m[3]) / +m[1] })),
+  ratePerUnitRule,
+  rule(/^Opposite of (-?\d+) = __$/, (m) => ({ num: -+m[1] })),
+  equationRule,
+  coinRule,
+  missingTermRule,
+  plainExprRule,
+];
+
+/** Expected answer: { num } (numeric) or { str } (exact text). */
+function oracle(p) {
+  const prompt = p.prompt.replace(/ \(simplest form\)$/, '');
+  for (const solve of ORACLE_RULES) {
+    const r = solve(prompt, p);
+    if (r !== undefined) return r;
+  }
+  return undefined;
 }
 
 /** Compare problem.answer to the oracle; also check canonical formatting. */
@@ -238,15 +261,20 @@ export function assertAnswer(p) {
   assert.ok(Math.abs(v - exp.num) <= 1e-9 * Math.max(1, Math.abs(exp.num)), `${p.prompt}: answer ${a} expected ${exp.num}`);
 }
 
+// Each answer feature needs the matching keypad key.
+const KEYPAD_NEEDS = [
+  [(a) => a.startsWith('-'), 'minus'],
+  [(a) => a.includes('.'), 'decimal'],
+  [(a) => a.includes('/'), 'fractionSlash'],
+  [(a) => a.includes(' R '), 'remainder'],
+];
+
 export function keypadCanType(p) {
   const k = p.keypad;
   const a = p.answer;
   if (p.answerType === 'symbol') return k.compare && ['<', '>', '='].includes(a);
   if (p.answerType === 'choice') return Array.isArray(k.choices) && k.choices.includes(a);
-  if (a.startsWith('-') && !k.minus) return false;
-  if (a.includes('.') && !k.decimal) return false;
-  if (a.includes('/') && !k.fractionSlash) return false;
-  if (a.includes(' R ') && !k.remainder) return false;
+  if (KEYPAD_NEEDS.some(([has, key]) => has(a) && !k[key])) return false;
   const nDigits = (a.match(/\d/g) || []).length;
   if (p.answerType === 'quotient_remainder') return nDigits <= 14 && k.digits;
   return k.digits && nDigits <= k.maxDigits;
@@ -962,5 +990,3 @@ function decAddSub(p, i, max) {
   if (i === 1) assert.ok(pa !== pb && pa >= 1 && pb >= 1);
   if (i === 2) assert.ok(pa === 0 && op === '-' && b < a);
 }
-
-export function skipCountCheck() {}

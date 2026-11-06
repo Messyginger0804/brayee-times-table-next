@@ -47,6 +47,25 @@ function makeSprite(kind) {
   return t;
 }
 
+/** Sprite texture created once per kind and disposed on unmount. */
+function useSprite(kind) {
+  const sprite = useMemo(() => makeSprite(kind), [kind]);
+  useEffect(() => () => sprite.dispose(), [sprite]);
+  return sprite;
+}
+
+/** Dynamic-position THREE.Points shared by the star layers and the burst. */
+function PointsCloud({ pointsRef, matRef, count, positions, sprite, color, size, visible = true }) {
+  return (
+    <points ref={pointsRef} frustumCulled={false} visible={visible}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} usage={THREE.DynamicDrawUsage} />
+      </bufferGeometry>
+      <pointsMaterial ref={matRef} map={sprite} color={color} size={size} sizeAttenuation transparent depthWrite={false} alphaTest={0.01} />
+    </points>
+  );
+}
+
 /** One parallax layer of points. Positions are stored as normalized (u,v) and mapped to the visible frustum. */
 function StarLayer({ count, depth, size, speed, color, twinkle, phase, seed }) {
   const ref = useRef();
@@ -60,7 +79,7 @@ function StarLayer({ count, depth, size, speed, color, twinkle, phase, seed }) {
     return Array.from({ length: count }, () => ({ u: r() * 2 - 1, v: r() * 2 - 1 }));
   }, [count, seed]);
   const positions = useMemo(() => new Float32Array(count * 3), [count]);
-  const sprite = useMemo(() => makeSprite('dot'), []);
+  const sprite = useSprite('dot');
 
   useEffect(() => {
     const onMove = (e) => {
@@ -70,7 +89,6 @@ function StarLayer({ count, depth, size, speed, color, twinkle, phase, seed }) {
     window.addEventListener('pointermove', onMove, { passive: true });
     return () => window.removeEventListener('pointermove', onMove);
   }, []);
-  useEffect(() => () => sprite.dispose(), [sprite]);
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -95,12 +113,7 @@ function StarLayer({ count, depth, size, speed, color, twinkle, phase, seed }) {
   });
 
   return (
-    <points ref={ref} frustumCulled={false}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} usage={THREE.DynamicDrawUsage} />
-      </bufferGeometry>
-      <pointsMaterial ref={matRef} map={sprite} color={color} size={size} sizeAttenuation transparent depthWrite={false} alphaTest={0.01} />
-    </points>
+    <PointsCloud pointsRef={ref} matRef={matRef} count={count} positions={positions} sprite={sprite} color={color} size={size} />
   );
 }
 
@@ -208,9 +221,8 @@ function Burst({ reduced }) {
   const origin = useRef(new THREE.Vector3());
   const vel = useMemo(() => new Float32Array(N * 3), [N]);
   const positions = useMemo(() => new Float32Array(N * 3).fill(9999), [N]);
-  const sprite = useMemo(() => makeSprite('star'), []);
+  const sprite = useSprite('star');
   const lastBurst = useRef(gameFx.getState().burst);
-  useEffect(() => () => sprite.dispose(), [sprite]);
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -246,12 +258,7 @@ function Burst({ reduced }) {
   });
 
   return (
-    <points ref={ref} frustumCulled={false} visible={false}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={N} array={positions} itemSize={3} usage={THREE.DynamicDrawUsage} />
-      </bufferGeometry>
-      <pointsMaterial ref={matRef} map={sprite} color="#ffd75e" size={0.28} sizeAttenuation transparent depthWrite={false} alphaTest={0.01} />
-    </points>
+    <PointsCloud pointsRef={ref} matRef={matRef} count={N} positions={positions} sprite={sprite} color="#ffd75e" size={0.28} visible={false} />
   );
 }
 

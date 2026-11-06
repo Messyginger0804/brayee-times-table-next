@@ -19,3 +19,12 @@ export async function requireUserId() {
   if (!id) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
   return id;
 }
+
+/** Auth + `[id]` param check shared by the /api/problems/[id]/* routes. Returns { userId, problemId } or { error: Response }. */
+export async function requireProblemRequest(params) {
+  const userId = await getUserId();
+  if (!userId) return { error: NextResponse.json({ error: 'Not logged in' }, { status: 401 }) };
+  const problemId = parseInt(params.id, 10);
+  if (!Number.isInteger(problemId)) return { error: NextResponse.json({ error: 'Invalid problem id' }, { status: 400 }) };
+  return { userId, problemId };
+}

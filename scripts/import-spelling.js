@@ -14,67 +14,46 @@
 const fs = require('fs');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
+const { planSpecWords, planLegacyWords } = require('./lib/spellingImport');
 
 const DRY = process.argv.includes('--dry-run');
 const file = path.join(__dirname, '..', 'docs', 'curriculum', 'spelling.json');
 
+function dbHost() {
+  return (process.env.DATABASE_URL || '').replace(/^.*@/, '').replace(/[?].*$/, '');
+}
+
+async function writePlan(prisma, toInsert, updates) {
+  for (let i = 0; i < toInsert.length; i += 500) {
+    await prisma.spellingWord.createMany({ data: toInsert.slice(i, i + 500), skipDuplicates: true });
+  }
+  for (const u of updates) await prisma.spellingWord.update({ where: { id: u.id }, data: u.data });
+}
+
+async function importWords(prisma, spec) {
+  const existing = await prisma.spellingWord.findMany();
+  const byWord = new Map(existing.map((r) => [r.word, r]));
+  // Dedupe by word (last classification wins, as before)
+  const classification = [...new Map(spec.existingWordsClassification.map((c) => [c.word, c])).values()];
+
+  const specPlan = planSpecWords(spec.words, byWord);
+  const legacy = planLegacyWords(classification, byWord, specPlan.seen);
+  const updates = [...specPlan.updates, ...legacy.updates];
+
+  if (!DRY) await writePlan(prisma, specPlan.toInsert, updates);
+  const total = await prisma.spellingWord.count();
+  console.log(JSON.stringify({
+    inserted: specPlan.toInsert.length, updated: updates.length, gradeConflictsSkipped: specPlan.conflicts,
+    legacyNotFound: legacy.missing, totalRows: total, dryRun: DRY,
+  }));
+}
+
 async function main() {
   const spec = JSON.parse(fs.readFileSync(file, 'utf8'));
   const prisma = new PrismaClient();
-  const host = (process.env.DATABASE_URL || '').replace(/^.*@/, '').replace(/[?].*$/, '');
-  console.log(`Target db: ${host || '(DATABASE_URL not set)'}${DRY ? '  [dry run]' : ''}`);
+  console.log(`Target db: ${dbHost() || '(DATABASE_URL not set)'}${DRY ? '  [dry run]' : ''}`);
   try {
-    const existing = await prisma.spellingWord.findMany();
-    const byWord = new Map(existing.map((r) => [r.word, r]));
-    const classification = new Map(spec.existingWordsClassification.map((c) => [c.word, c]));
-
-    const toInsert = [];
-    let conflicts = 0;
-    const updates = [];
-    const seen = new Set();
-
-    for (const w of spec.words) {
-      if (seen.has(w.word)) continue; // (word, grade) is unique in the spec; word is unique in the table
-      seen.add(w.word);
-      const row = byWord.get(w.word);
-      if (!row) {
-        toInsert.push({
-          word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech, sentence: w.sentence,
-          difficulty: w.difficulty, category: w.category ?? w.unitId, active: w.active !== false,
-          grade: w.grade, unitId: w.unitId, tier: w.tier, syllables: w.syllables, source: w.source || 'original',
-        });
-        continue;
-      }
-      if (row.grade != null && row.grade !== w.grade) { conflicts++; continue; }
-      const fill = {};
-      for (const [k, v] of [['grade', w.grade], ['unitId', w.unitId], ['tier', w.tier], ['syllables', w.syllables], ['source', w.source], ['category', w.category ?? w.unitId]]) {
-        if (row[k] == null && v != null) fill[k] = v;
-      }
-      if (Object.keys(fill).length) updates.push({ id: row.id, data: fill });
-    }
-
-    // legacy rows: fill NULLs from the classification (these words are not in spec.words)
-    let legacyMissing = 0;
-    for (const c of classification.values()) {
-      if (seen.has(c.word)) continue;
-      const row = byWord.get(c.word);
-      if (!row) { legacyMissing++; continue; }
-      const fill = {};
-      if (row.grade == null) fill.grade = c.grade;
-      if (row.unitId == null) fill.unitId = c.unitId;
-      if (row.category == null) fill.category = c.unitId;
-      if (row.source == null) fill.source = 'legacy';
-      if (Object.keys(fill).length) updates.push({ id: row.id, data: fill });
-    }
-
-    if (!DRY) {
-      for (let i = 0; i < toInsert.length; i += 500) {
-        await prisma.spellingWord.createMany({ data: toInsert.slice(i, i + 500), skipDuplicates: true });
-      }
-      for (const u of updates) await prisma.spellingWord.update({ where: { id: u.id }, data: u.data });
-    }
-    const total = await prisma.spellingWord.count();
-    console.log(JSON.stringify({ inserted: toInsert.length, updated: updates.length, gradeConflictsSkipped: conflicts, legacyNotFound: legacyMissing, totalRows: total, dryRun: DRY }));
+    await importWords(prisma, spec);
   } finally {
     await prisma.$disconnect();
   }

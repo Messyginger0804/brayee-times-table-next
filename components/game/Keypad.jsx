@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { specialToken, physicalSpecialKey } from './keypadRules';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
@@ -18,11 +19,8 @@ export default function Keypad({ value, onChange, onSubmit, disabled = false, ma
   const back = () => { if (!disabled) onChange(value.slice(0, -1)); };
   const special = (k) => {
     if (disabled) return;
-    if (k === '-') { if (value === '') add('-'); }
-    else if (k === '.') { const part = value.split(/[ /R]/).pop(); if (!part.includes('.')) add(part === '' ? '0.' : '.'); }
-    else if (k === '/') { if (/\d$/.test(value) && !value.includes('/')) add('/'); }
-    else if (k === ' ') { if (/\d$/.test(value) && !value.includes('/') && !value.includes(' ')) add(' '); }
-    else if (k === 'R') { if (/\d$/.test(value) && !value.includes('R')) add(' R '); }
+    const t = specialToken(k, value);
+    if (t !== null) add(t);
   };
   const extraKeys = [
     x.minus && { k: '-', label: '−', name: 'Minus sign' },
@@ -39,7 +37,7 @@ export default function Keypad({ value, onChange, onSubmit, disabled = false, ma
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
       if ((e.key === 'Enter' || e.key === ' ') && t && t.tagName === 'BUTTON') return; // the focused button handles Enter/Space itself
       if (/^\d$/.test(e.key)) press(e.key);
-      else if (extras && ['-', '.', '/', ' ', 'r', 'R'].includes(e.key)) { e.preventDefault(); special(e.key.toUpperCase() === 'R' ? 'R' : e.key); }
+      else if (extras && physicalSpecialKey(e.key)) { e.preventDefault(); special(physicalSpecialKey(e.key)); }
       else if (e.key === 'Backspace') back();
       else if (e.key === 'Enter') onSubmit();
     };

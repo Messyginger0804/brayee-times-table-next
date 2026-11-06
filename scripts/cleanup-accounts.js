@@ -21,6 +21,7 @@
  * Idempotent: a second --confirm finds nothing left to merge or delete.
  */
 const { PrismaClient } = require('@prisma/client');
+const { groupBy, mergeProgress, mergeUserProblemRows } = require('./lib/accountMerge');
 
 const KEEP = 'Braylee';
 const MERGE = ['braylee', 'bray', 'Bray'];
@@ -43,128 +44,127 @@ async function loadIsMastered() {
   return null;
 }
 
-const maxDate = (...ds) => ds.filter(Boolean).reduce((a, b) => (a && a > b ? a : b), null);
-const minDate = (...ds) => ds.filter(Boolean).reduce((a, b) => (a && a < b ? a : b), null);
+const MOVED_MODELS = [['Attempt', 'attempt'], ['Test', 'test'], ['SpellingAttempt', 'spellingAttempt'], ['MathAttempt', 'mathAttempt']];
 
-function mergeProgress(rows) {
-  const top = Math.max(...rows.map((r) => r.levelIndex));
-  const atTop = rows.filter((r) => r.levelIndex === top).sort((a, b) => a.updatedAt - b.updatedAt);
-  const recent = [];
-  for (const r of atTop) recent.push(...(Array.isArray(r.recent) ? r.recent : []));
-  return {
-    levelIndex: top,
-    recent: recent.slice(-20),
-    attempts: rows.reduce((n, r) => n + r.attempts, 0),
-    correct: rows.reduce((n, r) => n + r.correct, 0),
-    mastered: rows.some((r) => r.mastered),
-    masteredAt: maxDate(...rows.map((r) => r.masteredAt)),
-    unlockedByParent: rows.some((r) => r.unlockedByParent),
-    createdAt: minDate(...rows.map((r) => r.createdAt)),
-    updatedAt: maxDate(...rows.map((r) => r.updatedAt)),
-  };
-}
-
-async function run(tx, isMastered, log) {
+async function loadPlan(tx) {
   const keep = await tx.user.findUnique({ where: { name: KEEP } });
   if (!keep) throw new Error(`No user named exactly "${KEEP}" - refusing to continue`);
   const dupes = await tx.user.findMany({ where: { name: { in: MERGE }, isGuest: false }, orderBy: { id: 'asc' } });
-  const dupeIds = dupes.map((u) => u.id);
   const others = await tx.user.findMany({
     where: { isGuest: false, name: { notIn: [KEEP, ...MERGE] } },
     select: { id: true, name: true },
     orderBy: { id: 'asc' },
   });
-  const otherIds = others.map((u) => u.id);
+  return { keep, dupes, dupeIds: dupes.map((u) => u.id), others, otherIds: others.map((u) => u.id) };
+}
 
-  const braylAttemptsBefore = await tx.attempt.count({ where: { userId: keep.id } });
-  log(`keep   : ${KEEP} (id ${keep.id}), ${braylAttemptsBefore} attempts`);
+function logPlan(plan, attemptsBefore, log) {
+  const { keep, dupes, others } = plan;
+  log(`keep   : ${KEEP} (id ${keep.id}), ${attemptsBefore} attempts`);
   log(`merge  : ${dupes.length ? dupes.map((u) => `${u.name}(id ${u.id})`).join(', ') : '(none left)'}  [looked for ${MERGE.join(', ')}]`);
   log(`delete : ${others.length} users${others.length ? ': ' + others.map((u) => u.name).join(', ') : ''}`);
+}
 
-  const stats = { moved: {}, userProblemConflicts: 0, mathConflicts: 0, deleted: {} };
-
-  if (dupeIds.length) {
-    const ids = [keep.id, ...dupeIds];
-    for (const [label, model] of [['Attempt', 'attempt'], ['Test', 'test'], ['SpellingAttempt', 'spellingAttempt'], ['MathAttempt', 'mathAttempt']]) {
-      const r = await tx[model].updateMany({ where: { userId: { in: dupeIds } }, data: { userId: keep.id } });
-      stats.moved[label] = r.count;
-    }
-
-    // UserProblem
-    const ups = await tx.userProblem.findMany({ where: { userId: { in: ids } } });
-    const byProblem = new Map();
-    for (const r of ups) { if (!byProblem.has(r.problemId)) byProblem.set(r.problemId, []); byProblem.get(r.problemId).push(r); }
-    const conflicted = [...byProblem.entries()].filter(([, rows]) => rows.length > 1).map(([pid]) => pid);
-    const history = new Map();
-    if (isMastered && conflicted.length) {
-      const atts = await tx.attempt.findMany({
-        where: { userId: keep.id, problemId: { in: conflicted } },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        select: { problemId: true, isCorrect: true },
-      });
-      for (const a of atts) { if (!history.has(a.problemId)) history.set(a.problemId, []); history.get(a.problemId).push(a.isCorrect); }
-    }
-    await tx.userProblem.deleteMany({ where: { userId: { in: dupeIds } } });
-    let movedUp = 0;
-    for (const [problemId, rows] of byProblem) {
-      const own = rows.find((r) => r.userId === keep.id);
-      const everCorrect = rows.some((r) => r.everCorrect);
-      const updatedAt = maxDate(...rows.map((r) => r.updatedAt));
-      let mastered = rows.some((r) => r.mastered);
-      if (rows.length > 1) {
-        stats.userProblemConflicts++;
-        const h = history.get(problemId);
-        if (isMastered && h && h.length) mastered = isMastered(h);
-      }
-      if (own) {
-        if (rows.length > 1) await tx.userProblem.update({ where: { userId_problemId: { userId: keep.id, problemId } }, data: { everCorrect, mastered, updatedAt } });
-      } else {
-        movedUp++;
-        await tx.userProblem.create({ data: { userId: keep.id, problemId, everCorrect, mastered, updatedAt } });
-      }
-    }
-    stats.moved.UserProblem = movedUp;
-
-    // MathSkillProgress
-    const msp = await tx.mathSkillProgress.findMany({ where: { userId: { in: ids } } });
-    const bySkill = new Map();
-    for (const r of msp) { if (!bySkill.has(r.skillId)) bySkill.set(r.skillId, []); bySkill.get(r.skillId).push(r); }
-    await tx.mathSkillProgress.deleteMany({ where: { userId: { in: ids } } });
-    let movedMsp = 0;
-    for (const [skillId, rows] of bySkill) {
-      if (rows.length > 1) stats.mathConflicts++;
-      if (!rows.some((r) => r.userId === keep.id)) movedMsp++;
-      await tx.mathSkillProgress.create({ data: { userId: keep.id, skillId, ...mergeProgress(rows) } });
-    }
-    stats.moved.MathSkillProgress = movedMsp;
-
-    const level = Math.max(keep.level, ...dupes.map((u) => u.level));
-    if (level !== keep.level) await tx.user.update({ where: { id: keep.id }, data: { level } });
-    stats.deleted.mergedUsers = (await tx.user.deleteMany({ where: { id: { in: dupeIds } } })).count;
+async function moveAttemptRows(tx, plan, stats) {
+  for (const [label, model] of MOVED_MODELS) {
+    const r = await tx[model].updateMany({ where: { userId: { in: plan.dupeIds } }, data: { userId: plan.keep.id } });
+    stats.moved[label] = r.count;
   }
+}
 
-  if (otherIds.length) {
-    const w = { where: { userId: { in: otherIds } } };
-    stats.deleted.Attempt = (await tx.attempt.deleteMany(w)).count;
-    stats.deleted.Test = (await tx.test.deleteMany(w)).count;
-    stats.deleted.SpellingAttempt = (await tx.spellingAttempt.deleteMany(w)).count;
-    stats.deleted.MathAttempt = (await tx.mathAttempt.deleteMany(w)).count;
-    stats.deleted.MathSkillProgress = (await tx.mathSkillProgress.deleteMany(w)).count;
-    stats.deleted.UserProblem = (await tx.userProblem.deleteMany(w)).count;
-    stats.deleted.Account = (await tx.account.deleteMany(w)).count;
-    stats.deleted.Session = (await tx.session.deleteMany(w)).count;
-    stats.deleted.Users = (await tx.user.deleteMany({ where: { id: { in: otherIds } } })).count;
+// problemId -> isCorrect[] (newest first) for the problems that exist on more than one account
+async function loadAttemptHistory(tx, keepId, conflicted, isMastered) {
+  if (!isMastered || !conflicted.length) return new Map();
+  const atts = await tx.attempt.findMany({
+    where: { userId: keepId, problemId: { in: conflicted } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { problemId: true, isCorrect: true },
+  });
+  const grouped = groupBy(atts, (a) => a.problemId);
+  return new Map([...grouped].map(([pid, rows]) => [pid, rows.map((a) => a.isCorrect)]));
+}
+
+async function mergeUserProblems(tx, plan, ids, isMastered, stats) {
+  const keepId = plan.keep.id;
+  const ups = await tx.userProblem.findMany({ where: { userId: { in: ids } } });
+  const byProblem = groupBy(ups, (r) => r.problemId);
+  const conflicted = [...byProblem.entries()].filter(([, rows]) => rows.length > 1).map(([pid]) => pid);
+  const history = await loadAttemptHistory(tx, keepId, conflicted, isMastered);
+  await tx.userProblem.deleteMany({ where: { userId: { in: plan.dupeIds } } });
+  let movedUp = 0;
+  for (const [problemId, rows] of byProblem) {
+    const { own, conflict, data } = mergeUserProblemRows(rows, keepId, history.get(problemId), isMastered);
+    if (conflict) stats.userProblemConflicts++;
+    if (!own) {
+      movedUp++;
+      await tx.userProblem.create({ data: { userId: keepId, problemId, ...data } });
+    } else if (conflict) {
+      await tx.userProblem.update({ where: { userId_problemId: { userId: keepId, problemId } }, data });
+    }
   }
+  stats.moved.UserProblem = movedUp;
+}
 
+async function mergeSkillProgress(tx, plan, ids, stats) {
+  const keepId = plan.keep.id;
+  const msp = await tx.mathSkillProgress.findMany({ where: { userId: { in: ids } } });
+  const bySkill = groupBy(msp, (r) => r.skillId);
+  await tx.mathSkillProgress.deleteMany({ where: { userId: { in: ids } } });
+  let movedMsp = 0;
+  for (const [skillId, rows] of bySkill) {
+    if (rows.length > 1) stats.mathConflicts++;
+    if (!rows.some((r) => r.userId === keepId)) movedMsp++;
+    await tx.mathSkillProgress.create({ data: { userId: keepId, skillId, ...mergeProgress(rows) } });
+  }
+  stats.moved.MathSkillProgress = movedMsp;
+}
+
+async function mergeDupes(tx, plan, isMastered, stats) {
+  const { keep, dupes, dupeIds } = plan;
+  const ids = [keep.id, ...dupeIds];
+  await moveAttemptRows(tx, plan, stats);
+  await mergeUserProblems(tx, plan, ids, isMastered, stats);
+  await mergeSkillProgress(tx, plan, ids, stats);
+  const level = Math.max(keep.level, ...dupes.map((u) => u.level));
+  if (level !== keep.level) await tx.user.update({ where: { id: keep.id }, data: { level } });
+  stats.deleted.mergedUsers = (await tx.user.deleteMany({ where: { id: { in: dupeIds } } })).count;
+}
+
+async function deleteOthers(tx, otherIds, stats) {
+  const w = { where: { userId: { in: otherIds } } };
+  stats.deleted.Attempt = (await tx.attempt.deleteMany(w)).count;
+  stats.deleted.Test = (await tx.test.deleteMany(w)).count;
+  stats.deleted.SpellingAttempt = (await tx.spellingAttempt.deleteMany(w)).count;
+  stats.deleted.MathAttempt = (await tx.mathAttempt.deleteMany(w)).count;
+  stats.deleted.MathSkillProgress = (await tx.mathSkillProgress.deleteMany(w)).count;
+  stats.deleted.UserProblem = (await tx.userProblem.deleteMany(w)).count;
+  stats.deleted.Account = (await tx.account.deleteMany(w)).count;
+  stats.deleted.Session = (await tx.session.deleteMany(w)).count;
+  stats.deleted.Users = (await tx.user.deleteMany({ where: { id: { in: otherIds } } })).count;
+}
+
+async function verifyAndReport(tx, plan, attemptsBefore, stats, log) {
+  const { keep, dupeIds } = plan;
   const real = await tx.user.findMany({ where: { isGuest: false }, select: { id: true, name: true } });
   if (real.length !== 1 || real[0].name !== KEEP) throw new Error(`Expected exactly one non-guest user (${KEEP}), found: ${real.map((u) => u.name).join(', ')}`);
-  const braylAttemptsAfter = await tx.attempt.count({ where: { userId: keep.id } });
-  const sumBefore = braylAttemptsBefore + (dupeIds.length ? stats.moved.Attempt : 0);
-  if (braylAttemptsAfter !== sumBefore) throw new Error(`Attempt count mismatch: ${braylAttemptsAfter} vs ${sumBefore}`);
+  const attemptsAfter = await tx.attempt.count({ where: { userId: keep.id } });
+  const sumBefore = attemptsBefore + (dupeIds.length ? stats.moved.Attempt : 0);
+  if (attemptsAfter !== sumBefore) throw new Error(`Attempt count mismatch: ${attemptsAfter} vs ${sumBefore}`);
   log(`moved  : ${JSON.stringify(stats.moved)}`);
   log(`merged : ${stats.userProblemConflicts} UserProblem conflicts, ${stats.mathConflicts} MathSkillProgress conflicts`);
   log(`deleted: ${JSON.stringify(stats.deleted)}`);
-  log(`result : ${KEEP} has ${braylAttemptsAfter} attempts; ${real.length} non-guest user remains; guest seat rows untouched`);
+  log(`result : ${KEEP} has ${attemptsAfter} attempts; ${real.length} non-guest user remains; guest seat rows untouched`);
+}
+
+async function run(tx, isMastered, log) {
+  const plan = await loadPlan(tx);
+  const attemptsBefore = await tx.attempt.count({ where: { userId: plan.keep.id } });
+  logPlan(plan, attemptsBefore, log);
+
+  const stats = { moved: {}, userProblemConflicts: 0, mathConflicts: 0, deleted: {} };
+  if (plan.dupeIds.length) await mergeDupes(tx, plan, isMastered, stats);
+  if (plan.otherIds.length) await deleteOthers(tx, plan.otherIds, stats);
+  await verifyAndReport(tx, plan, attemptsBefore, stats, log);
 }
 
 async function main() {

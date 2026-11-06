@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
-import { getUserId } from '../../../_utils';
+import { requireProblemRequest } from '../../../_utils';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req, { params }) {
-  const userId = await getUserId();
-  if (!userId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
-  const problemId = parseInt(params.id, 10);
-  if (!Number.isInteger(problemId)) return NextResponse.json({ error: 'Invalid problem id' }, { status: 400 });
+  const { userId, problemId, error } = await requireProblemRequest(params);
+  if (error) return error;
   try {
     const attempts = await prisma.attempt.findMany({
       where: { problemId, userId },

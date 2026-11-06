@@ -2,9 +2,10 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Header from './Header';
-import Screen, { GlassCard } from './ui/Screen';
+import Screen from './ui/Screen';
 import Button from './ui/Button';
 import LevelIndicator from './LevelIndicator';
+import NoProblemsScreen from './modes/drill/NoProblemsScreen';
 import { emoji } from '../lib/emoji';
 
 const prettyProblem = (p) => String(p).replace(/\s*x\s*/i, ' × ');
@@ -15,20 +16,7 @@ function MemorizeMode({ user, problems, level, onReset }) {
 
   const next = () => { setFlipped(false); setIndex((i) => (i + 1) % problems.length); };
 
-  if (problems.length === 0) {
-    return (
-      <Screen>
-        <Header onReset={onReset} userName={user?.name} userImage={user?.image} />
-        <div className="flex flex-1 items-center justify-center">
-          <GlassCard className="text-center">
-            <h1 className="mb-2 text-title text-neon-pink">No Problems Yet</h1>
-            <p className="mb-5 text-body text-ink-dim">There aren&apos;t any problems available for this level right now.</p>
-            <Button tone="violet" onClick={onReset}>Back to Main Menu</Button>
-          </GlassCard>
-        </div>
-      </Screen>
-    );
-  }
+  if (problems.length === 0) return <NoProblemsScreen user={user} onReset={onReset} />;
 
   const card = problems[index];
   const face = 'absolute inset-0 flex flex-col items-center justify-center rounded-bubble border-2 [backface-visibility:hidden]';

@@ -9,7 +9,7 @@ import { useAvatarSrc } from './AstronautHelmet';
  * static snapshot (no motion at all). Purely decorative: aria-hidden, pointer-events none.
  */
 
-export const POSES = ['idle', 'welcome', 'correct', 'streak', 'tryAgain', 'levelUp'];
+const POSES = ['idle', 'welcome', 'correct', 'streak', 'tryAgain', 'levelUp'];
 /** How long each reaction plays before the stage returns to idle (ms). */
 export const POSE_MS = { welcome: 2600, correct: 1700, streak: 2800, tryAgain: 3600, levelUp: 4200 };
 

@@ -66,86 +66,110 @@ function acceptedVariants(p) {
 
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
+function assertShape(p, skill, i) {
+  assert.equal(p.skillId, skill.id);
+  assert.equal(p.levelIndex, i);
+  assert.ok(ALLOWED_TYPES.has(p.answerType), p.answerType);
+  assert.equal(typeof p.prompt, 'string');
+  assert.equal(typeof p.answer, 'string');
+  assert.ok(p.prompt.length > 0 && p.promptParts.length > 0);
+  assert.equal(plainFromParts(p.promptParts), p.prompt, 'promptParts must match prompt');
+  assert.deepEqual(Object.keys(p.keypad).sort(), [...KEYPAD_KEYS].sort());
+}
+
+function assertConstraints(skill, i, ctx) {
+  const c = CONSTRAINTS[skill.id];
+  assert.ok(c, `missing constraints for ${skill.id}`);
+  try {
+    c(ctx);
+  } catch (e) {
+    e.message = `${skill.id}.L${i + 1} "${ctx.p.prompt}": ${e.message}`;
+    throw e;
+  }
+}
+
+function assertCheckAnswer(p) {
+  for (const v of acceptedVariants(p)) {
+    const r = checkAnswer(p, v);
+    assert.ok(r.correct, `should accept "${v}" for ${p.prompt} (answer ${p.answer})`);
+  }
+  for (const w of wrongAnswers(p)) {
+    const r = checkAnswer(p, w);
+    assert.ok(!r.correct, `should reject "${w}" for ${p.prompt} (answer ${p.answer})`);
+  }
+}
+
+function assertFractionChecks(p) {
+  const [n, d] = p.answer.includes('/') ? p.answer.split('/').map(Number) : [Number(p.answer), 1];
+  // equivalent unreduced form: accepted with the simplify hint unless simplest form is required
+  const eq2 = d === 1 ? `${n * 2}/2` : `${n * 2}/${d * 2}`;
+  const r = checkAnswer(p, eq2);
+  if (p.requireSimplest) assert.ok(!r.correct && r.feedbackHint);
+  else assert.ok(r.correct && r.feedbackHint === 'can you simplify?', `${p.prompt} ${eq2}`);
+  if (n > d && d > 1) {
+    const mixed = `${Math.floor(n / d)} ${n % d}/${d}`;
+    const mr = checkAnswer(p, n % d ? mixed : `${n / d}`);
+    assert.ok(mr.correct && !mr.feedbackHint, `mixed ${mixed} for ${p.prompt}`);
+  }
+}
+
+/** Per-problem counters used by the level-level statistics. */
+function tally(p, stats) {
+  const m = /^(\d+) x (\d+) = __$/.exec(p.prompt);
+  if (m && (+m[1] <= 1 || +m[2] <= 1)) stats.trivialMult++;
+  if (p.answerType === 'symbol' && p.answer === '=') stats.eqCount++;
+  if (['yes', 'prime', 'even'].includes(p.answer)) stats.yes++;
+  if (/\b(99|100|101)\b/.test(p.prompt) || p.answer === '100') stats.hundred++;
+}
+
+function assertProblem(p, skill, i, level, prev) {
+  assertShape(p, skill, i);
+  assert.notEqual(p.prompt, prev, `repeat: ${p.prompt}`); // no back-to-back repeat
+  assertAnswer(p); // independent answer
+  assertConstraints(skill, i, { p, i, params: level.params, prompt: p.prompt });
+  assert.ok(keypadCanType(p), `keypad cannot type ${p.answer} for ${p.prompt}: ${JSON.stringify(p.keypad)}`);
+  assertCheckAnswer(p);
+  if (p.answerType === 'fraction') assertFractionChecks(p);
+}
+
+const inOpenRange = (v, lo, hi, msg) => assert.ok(v > lo && v < hi, msg);
+
+/** Skill/level specific distribution checks: [applies, assertion]. */
+const LEVEL_STAT_CHECKS = [
+  [(sk, i) => sk.id === 'g1-compare' && i > 0, (st, sk, i, n) => assert.ok(st.eqCount >= n * 0.05 && st.eqCount <= n * 0.3, `equal share ${st.eqCount}`)],
+  [(sk) => sk.id === 'g3-even-odd', (st, sk, i, n) => inOpenRange(st.yes / n, 0.35, 0.65, `even share ${st.yes / n}`)],
+  [(sk, i) => sk.id === 'g4-factors-multiples' && i < 2, (st, sk, i, n) => inOpenRange(st.yes / n, 0.35, 0.65, `yes share ${st.yes / n}`)],
+  [(sk) => sk.id === 'g5-prime-composite', (st, sk, i, n) => inOpenRange(st.yes / n, 0.3, 0.5, `prime share ${st.yes / n}`)],
+  [(sk, i) => sk.id === 'g1-count-seq' && i === 2, (st, sk, i, n) => assert.ok(st.hundred >= n * 0.1, `crossing 100: ${st.hundred}`)],
+  [(sk, i) => sk.id === 'g2-compare-1000' && i === 2, (st) => assert.ok(st.eqCount >= 5, 'some equal pairs')],
+];
+
+function assertLevelStats(skill, i, seen, stats) {
+  assert.ok(new Set(seen).size >= 2, 'level yields varied problems');
+  const isZeroOneLevel = skill.id === 'g3-mult-0-1-2-5-10' && i === 3;
+  if (!isZeroOneLevel) assert.ok(stats.trivialMult <= N * 0.25, `${skill.id}.L${i + 1}: ${stats.trivialMult}/${N} are x0/x1 problems`);
+  for (const [applies, check] of LEVEL_STAT_CHECKS) if (applies(skill, i)) check(stats, skill, i, N);
+}
+
+function runLevel(skill, level, i) {
+  const rng = createRng(`${skill.id}#${i}`);
+  const seen = [];
+  const stats = { trivialMult: 0, eqCount: 0, yes: 0, hundred: 0 };
+  let prev = null;
+  for (let k = 0; k < N; k++) {
+    const p = generateProblem(skill.id, i, rng);
+    seen.push(p.prompt);
+    assertProblem(p, skill, i, level, prev);
+    prev = p.prompt;
+    tally(p, stats);
+  }
+  assertLevelStats(skill, i, seen, stats);
+}
+
 for (const skill of getSkills()) {
   describe(`${skill.id}`, () => {
     skill.levels.forEach((level, i) => {
-      it(`L${i + 1} ${level.name}`, () => {
-        const rng = createRng(`${skill.id}#${i}`);
-        const seen = [];
-        let prev = null;
-        let trivialMult = 0;
-        let eqCount = 0;
-        let yes = 0;
-        let hundred = 0;
-        for (let k = 0; k < N; k++) {
-          const p = generateProblem(skill.id, i, rng);
-          const ctx = { p, i, params: level.params, prompt: p.prompt };
-          seen.push(p.prompt);
-          // ---- shape
-          assert.equal(p.skillId, skill.id);
-          assert.equal(p.levelIndex, i);
-          assert.ok(ALLOWED_TYPES.has(p.answerType), p.answerType);
-          assert.equal(typeof p.prompt, 'string');
-          assert.equal(typeof p.answer, 'string');
-          assert.ok(p.prompt.length > 0 && p.promptParts.length > 0);
-          assert.equal(plainFromParts(p.promptParts), p.prompt, 'promptParts must match prompt');
-          assert.deepEqual(Object.keys(p.keypad).sort(), [...KEYPAD_KEYS].sort());
-          // ---- no back-to-back repeat
-          assert.notEqual(p.prompt, prev, `repeat: ${p.prompt}`);
-          prev = p.prompt;
-          // ---- independent answer + constraints + keypad
-          assertAnswer(p);
-          const c = CONSTRAINTS[skill.id];
-          assert.ok(c, `missing constraints for ${skill.id}`);
-          try {
-            c(ctx);
-          } catch (e) {
-            e.message = `${skill.id}.L${i + 1} "${p.prompt}": ${e.message}`;
-            throw e;
-          }
-          assert.ok(keypadCanType(p), `keypad cannot type ${p.answer} for ${p.prompt}: ${JSON.stringify(p.keypad)}`);
-          // ---- checkAnswer
-          for (const v of acceptedVariants(p)) {
-            const r = checkAnswer(p, v);
-            assert.ok(r.correct, `should accept "${v}" for ${p.prompt} (answer ${p.answer})`);
-          }
-          for (const w of wrongAnswers(p)) {
-            const r = checkAnswer(p, w);
-            assert.ok(!r.correct, `should reject "${w}" for ${p.prompt} (answer ${p.answer})`);
-          }
-          if (p.answerType === 'fraction') {
-            const [n, d] = p.answer.includes('/') ? p.answer.split('/').map(Number) : [Number(p.answer), 1];
-            // equivalent unreduced form: accepted with the simplify hint unless simplest form is required
-            const eq2 = d === 1 ? `${n * 2}/2` : `${n * 2}/${d * 2}`;
-            const r = checkAnswer(p, eq2);
-            if (p.requireSimplest) assert.ok(!r.correct && r.feedbackHint);
-            else assert.ok(r.correct && r.feedbackHint === 'can you simplify?', `${p.prompt} ${eq2}`);
-            if (n > d && d > 1) {
-              const mixed = `${Math.floor(n / d)} ${n % d}/${d}`;
-              const mr = checkAnswer(p, n % d ? mixed : `${n / d}`);
-              assert.ok(mr.correct && !mr.feedbackHint, `mixed ${mixed} for ${p.prompt}`);
-            }
-          }
-          // ---- x0 / x1 flood guard for plain fact prompts
-          const m = /^(\d+) x (\d+) = __$/.exec(p.prompt);
-          if (m && (+m[1] <= 1 || +m[2] <= 1)) trivialMult++;
-          if (p.answerType === 'symbol' && p.answer === '=') eqCount++;
-          if (['yes', 'prime', 'even'].includes(p.answer)) yes++;
-          if (/\b(99|100|101)\b/.test(p.prompt) || p.answer === '100') hundred++;
-        }
-        // ---- level-level statistics
-        const distinct = new Set(seen).size;
-        assert.ok(distinct >= 2, 'level yields varied problems');
-        const isZeroOneLevel = skill.id === 'g3-mult-0-1-2-5-10' && i === 3;
-        if (!isZeroOneLevel) assert.ok(trivialMult <= N * 0.25, `${skill.id}.L${i + 1}: ${trivialMult}/${N} are x0/x1 problems`);
-        if (skill.id === 'g1-compare' && i > 0) assert.ok(eqCount >= N * 0.05 && eqCount <= N * 0.3, `equal share ${eqCount}`);
-        const share = yes / N;
-        if (skill.id === 'g3-even-odd') assert.ok(share > 0.35 && share < 0.65, `even share ${share}`);
-        if (skill.id === 'g4-factors-multiples' && i < 2) assert.ok(share > 0.35 && share < 0.65, `yes share ${share}`);
-        if (skill.id === 'g5-prime-composite') assert.ok(share > 0.3 && share < 0.5, `prime share ${share}`);
-        if (skill.id === 'g1-count-seq' && i === 2) assert.ok(hundred >= N * 0.1, `crossing 100: ${hundred}`);
-        if (skill.id === 'g2-compare-1000' && i === 2) assert.ok(eqCount >= 5, 'some equal pairs');
-      });
+      it(`L${i + 1} ${level.name}`, () => runLevel(skill, level, i));
     });
   });
 }
