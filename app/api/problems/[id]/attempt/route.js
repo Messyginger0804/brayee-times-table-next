@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
 import { getUserId } from '../../../_utils';
+import { MASTERY_STREAK, isMastered } from '../../../../../lib/mastery';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req, { params }) {
   const userId = await getUserId();
@@ -24,12 +27,22 @@ export async function POST(req, { params }) {
       where: { id: problemId },
       data: correct ? { correct: { increment: 1 } } : { incorrect: { increment: 1 } },
     });
+    // Mastery: see lib/mastery.js (3 correct in a row => mastered; a miss clears it)
+    const recent = await prisma.attempt.findMany({
+      where: { problemId, userId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: MASTERY_STREAK,
+      select: { isCorrect: true },
+    });
+    const mastered = isMastered(recent.map(a => a.isCorrect));
     if (correct) {
       await prisma.userProblem.upsert({
         where: { userId_problemId: { userId, problemId } },
-        update: { everCorrect: true },
-        create: { userId, problemId, everCorrect: true },
+        update: { everCorrect: true, mastered },
+        create: { userId, problemId, everCorrect: true, mastered },
       });
+    } else {
+      await prisma.userProblem.updateMany({ where: { userId, problemId }, data: { mastered: false } });
     }
     return NextResponse.json({ success: true });
   } catch (e) {

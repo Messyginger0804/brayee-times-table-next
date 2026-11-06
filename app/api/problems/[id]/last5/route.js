@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
 import { getUserId } from '../../../_utils';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_req, { params }) {
   const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });

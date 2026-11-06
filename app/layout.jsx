@@ -1,20 +1,25 @@
+import "./globals.css";
+// Self-hosted variable font (bundled, no Google Fonts request, works offline/in Docker builds)
+import '@fontsource-variable/fredoka';
+import Providers from './providers';
+
 export const metadata = {
   title: "Braylee's Times Tables",
-  description: "Times tables practice and testing for kids",
+  description: "Times tables and spelling bee practice for kids",
 };
 
-import "./globals.css";
-import Providers from './providers';
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#050816',
+  colorScheme: 'dark',
+};
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap" rel="stylesheet" />
-      </head>
-      <body className="min-h-screen">
+      <body className="min-h-dvh">
         <Providers>{children}</Providers>
       </body>
     </html>

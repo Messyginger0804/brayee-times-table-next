@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(_req, { params }) {
   const id = parseInt(params.id, 10);
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });

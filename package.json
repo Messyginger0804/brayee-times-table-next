@@ -6,31 +6,50 @@
     "seed": "node prisma/seed.js"
   },
   "scripts": {
-    "dev": "npx prisma migrate deploy && npx prisma db seed && next dev -p 3000",
+    "dev": "next dev",
+    "dev:local": "sh scripts/dev-local.sh",
+    "lint": "next lint",
+    "test": "vitest run",
     "build": "prisma generate && next build",
     "start": "next start -p 3000",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.js",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:import-spelling": "node scripts/import-spelling.js",
+    "db:cleanup-accounts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/cleanup-accounts.js"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
+    "@fontsource-variable/fredoka": "^5.3.0",
     "@google-cloud/speech": "^7.2.0",
     "@prisma/client": "5.15.1",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
     "axios": "^1.12.2",
+    "bcryptjs": "^2.4.3",
+    "framer-motion": "^11.18.2",
     "next": "^14.2.33",
     "next-auth": "^4.24.11",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "sweetalert2": "^11.23.0"
+    "sweetalert2": "^11.23.0",
+    "three": "^0.169.0"
   },
   "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@types/three": "^0.169.0",
     "autoprefixer": "10.4.19",
     "eslint": "8.57.0",
     "eslint-config-next": "14.2.4",
     "postcss": "8.4.41",
     "prisma": "^5.15.1",
-    "tailwindcss": "3.4.7"
+    "tailwindcss": "3.4.7",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }

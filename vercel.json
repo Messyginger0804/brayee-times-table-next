@@ -1,0 +1,4 @@
+{
+  "git": { "deploymentEnabled": { "ui-overhaul": false } },
+  "crons": [{ "path": "/api/cron/purge-guests", "schedule": "0 4 * * *" }]
+}

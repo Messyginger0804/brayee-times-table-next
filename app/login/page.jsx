@@ -1,10 +1,14 @@
 "use client";
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import Swal from 'sweetalert2';
-import 'sweetalert2/dist/sweetalert2.min.css';
 import axios from 'axios';
+import { motion } from 'framer-motion';
+import Screen, { GlassCard } from '../../components/ui/Screen';
+import Button from '../../components/ui/Button';
+import HostAstronaut from '../../components/game/HostAstronaut';
+
+const fieldCls = 'w-full min-h-[3.25rem] rounded-chunk border-2 border-white/20 bg-space-900/80 px-4 text-lead text-ink placeholder:text-ink-dim/80 focus:border-neon-cyan focus:outline-none focus:ring-2 focus:ring-neon-cyan/60';
 
 export default function LoginPage() {
   const { data: session } = useSession();
@@ -12,100 +16,145 @@ export default function LoginPage() {
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [resume, setResume] = useState(null); // { seat, label } when this device still owns a guest seat
+  const [error, setError] = useState('');
+  const [done, setDone] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    axios.get('/api/guest/status', { withCredentials: true })
+      .then((r) => { if (alive) setResume(r.data?.resume || null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const enterGuest = async (mode) => {
+    setError('');
+    setLoading(true);
+    try {
+      await axios.post('/api/guest/claim', { mode }, { withCredentials: true });
+      const res = await signIn('guest', { redirect: false });
+      if (res?.ok) {
+        setDone('Blast off! 🚀');
+        setTimeout(() => router.push('/'), 500);
+        return;
+      }
+      setError('Could not start a guest game. Try again!');
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Could not start a guest game. Try again!');
+      if (mode === 'resume') setResume(null);
+    }
+    setLoading(false);
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!name.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Name required', confirmButtonColor: '#a855f7' });
-      return;
-    }
-    if (!/^\d{4}$/.test(String(pin))) {
-      Swal.fire({ icon: 'warning', title: 'PIN must be 4 digits', confirmButtonColor: '#a855f7' });
-      return;
-    }
+    setError('');
+    if (!name.trim()) { setError('Please type your name.'); return; }
+    if (!/^\d{4}$/.test(String(pin))) { setError('Your PIN needs exactly 4 numbers.'); return; }
     setLoading(true);
     try {
-      if (isRegistering) {
-        await axios.post('/api/auth/register', { name: name.trim(), pin }, { withCredentials: true });
-        await Swal.fire({
-          icon: 'success',
-          title: 'Account created ✨',
-          text: 'Signing you in…',
-          showConfirmButton: false,
-          timer: 1600,
-          confirmButtonColor: '#a855f7',
-
-        });
-      }
       const res = await signIn('credentials', { name, pin, redirect: false });
       if (res?.ok) {
         await fetch('/api/auth/link-cookie', { method: 'POST' });
-        try {
-          await Swal.fire({
-            icon: 'success',
-            title: 'Welcome back! 🎉',
-            text: 'Signed in successfully',
-            showConfirmButton: false,
-            timer: 1800,
-            confirmButtonColor: '#a855f7',
-  
-          });
-        } catch (_) {}
-        router.push('/');
-      } else {
-        Swal.fire({ icon: 'error', title: isRegistering ? 'Signup failed' : 'Login failed', text: res?.error || 'Invalid credentials', confirmButtonColor: '#a855f7' });
+        setDone('Welcome back! 🎉 Launching…');
+        setTimeout(() => router.push('/'), 700);
+        return;
       }
+      setError(res?.error ? `Login failed: ${res.error}` : 'Hmm, that name or PIN did not work. Try again!');
     } catch (err) {
-      const msg = err?.response?.data?.error || (isRegistering ? 'Could not create account' : 'Login failed');
-      Swal.fire({ icon: 'error', title: 'Oops…', text: msg, confirmButtonColor: '#a855f7' });
+      setError(err?.response?.data?.error || 'Login failed');
     }
     setLoading(false);
   };
 
   if (session?.user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 flex items-center justify-center p-4">
-        <div className="p-6 bg-white bg-opacity-50 rounded-lg shadow-lg max-w-sm w-full text-center">
-          
-          <button
-            className="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
-            onClick={async () => {
-              try {
-                await Swal.fire({
-                  icon: 'info',
-                  title: 'See you soon! 👋',
-                  showConfirmButton: false,
-                  timer: 1500,
-                  confirmButtonColor: '#a855f7',
-                  background: 'rgba(255, 255, 255, 0.5)',
-        
-                });
-              } catch (_) {}
-              await signOut({ callbackUrl: '/' });
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </div>
+      <Screen className="items-center justify-center">
+        <GlassCard className="w-full max-w-sm text-center">
+          <p className="mb-4 text-lead">You are already signed in 🚀</p>
+          <div className="flex flex-col gap-3">
+            <Button tone="cyan" size="lg" href="/">Go play</Button>
+            <Button tone="ghost" onClick={() => signOut({ callbackUrl: '/login' })}>Sign out</Button>
+          </div>
+        </GlassCard>
+      </Screen>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 flex items-center justify-center p-4">
-      <form onSubmit={handleLogin} className="p-6 bg-white bg-opacity-50 rounded-lg shadow-lg max-w-sm w-full text-center">
-        <h1 className="text-4xl font-gochi-hand text-pink-500 mb-1">Welcome back! 💖</h1>
-        <p className="text-purple-700 mb-4">Type your name and PIN to continue.</p>
-        <input className="border rounded px-3 py-2 w-full mb-3" placeholder="Type your name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <input className="border rounded px-3 py-2 w-full mb-4" placeholder="Type your 4-digit PIN" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={4} inputMode="numeric" pattern="\d{4}" required />
-        <button disabled={loading} className="w-full px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-gochi-hand text-2xl mb-3">
-          {loading ? (isRegistering ? 'Creating…' : 'Signing in…') : (isRegistering ? 'Create Account ✨' : 'Start Game 🚀')}
-        </button>
-        <button type="button" className="text-sm text-purple-700 hover:underline" onClick={() => setIsRegistering(!isRegistering)}>
-          {isRegistering ? 'Already have an account? Login' : 'Create a new account'}
-        </button>
-      </form>
-    </div>
+    <Screen className="items-center justify-center">
+      <motion.div
+        initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+        className="w-full max-w-sm"
+      >
+        <div className="mb-4 text-center">
+          <HostAstronaut size={150} className="mb-3" />
+          <h1 className="text-hero text-neon-cyan text-glow">Times Tables Mission Control</h1>
+          <p className="mt-1 text-lead text-ink-dim">Ready for blast off?</p>
+        </div>
+
+        <GlassCard>
+          <div className="flex flex-col gap-3">
+            {resume ? (
+              <>
+                <Button tone="lime" size="lg" disabled={loading} onClick={() => enterGuest('resume')}
+                  className="min-h-[5rem] w-full text-title">
+                  🚀 Continue as Cadet {resume.label}
+                </Button>
+                <Button tone="ghost" disabled={loading} onClick={() => enterGuest('new')} className="w-full">
+                  ✨ New guest
+                </Button>
+              </>
+            ) : (
+              <Button tone="lime" size="lg" disabled={loading} onClick={() => enterGuest('new')}
+                className="min-h-[5rem] w-full text-title">
+                🚀 Play as Guest
+              </Button>
+            )}
+
+            <div aria-live="polite" className="min-h-[1.5rem] text-center">
+              {error && !showLogin && (
+                <motion.p role="alert" initial={{ x: 0 }} animate={{ x: [0, -6, 6, -4, 4, 0] }} transition={{ duration: 0.4 }}
+                  className="text-body font-bold text-neon-coral">{error}</motion.p>
+              )}
+              {done && <p className="text-body font-bold text-neon-lime">{done}</p>}
+            </div>
+
+            {!showLogin ? (
+              <button type="button" className="min-h-[3rem] text-body text-neon-cyan underline underline-offset-4"
+                onClick={() => { setShowLogin(true); setError(''); }}>
+                Log in
+              </button>
+            ) : (
+              <form onSubmit={handleLogin} className="flex flex-col gap-4 border-t border-white/10 pt-4" noValidate>
+                <div>
+                  <label htmlFor="name" className="mb-1 block text-body font-bold">Your name</label>
+                  <input id="name" className={fieldCls} placeholder="Type your name" value={name} autoComplete="username"
+                    onChange={(e) => setName(e.target.value)} required />
+                </div>
+                <div>
+                  <label htmlFor="pin" className="mb-1 block text-body font-bold">4-digit PIN</label>
+                  <input id="pin" className={`${fieldCls} tracking-[0.5em]`} placeholder="••••" value={pin} maxLength={4}
+                    inputMode="numeric" pattern="\d{4}" autoComplete="current-password"
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} required />
+                </div>
+                <div aria-live="polite" className="min-h-[1.5rem]">
+                  {error && (
+                    <motion.p role="alert" initial={{ x: 0 }} animate={{ x: [0, -6, 6, -4, 4, 0] }} transition={{ duration: 0.4 }}
+                      className="text-body font-bold text-neon-coral">{error}</motion.p>
+                  )}
+                </div>
+                <Button type="submit" tone="cyan" size="md" disabled={loading} className="w-full">
+                  {loading ? 'Signing in…' : 'Log in'}
+                </Button>
+              </form>
+            )}
+          </div>
+        </GlassCard>
+      </motion.div>
+    </Screen>
   );
 }

@@ -1,289 +1,136 @@
 "use client";
-import { useEffect, useState } from 'react';
-import Swal from 'sweetalert2';
-import LevelIndicator from './LevelIndicator';
-import Header from './Header';
-import { getRandomCelebrateGif, getRandomUpsetGif } from '../lib/gifSelector';
-import { emoji } from '../lib/emoji';
-import { triggerFireworks } from '../lib/fireworks';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import Header from './Header';
+import Screen, { GlassCard } from './ui/Screen';
+import Button from './ui/Button';
+import Modal from './ui/Modal';
+import Keypad from './game/Keypad';
+import QuestionCard from './game/QuestionCard';
+import GameHud from './game/GameHud';
+import AttemptHints from './game/AttemptHints';
+import { useFeedback, GifSlot } from './gif/GifProvider';
+import { triggerFireworks } from '../lib/fireworks';
+import { recordStreak } from '../lib/bestStreak';
 
-function PracticeMode({ user, problems, level, onReset, attemptSummaries = {}, setAttemptSummaries, userProgress = {}, setUserProgress }) {
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [userAnswer, setUserAnswer] = useState('');
-  const [last5, setLast5] = useState({ correctCount: 0, totalCount: 0 });
-  const [showStats, setShowStats] = useState(false);
-  const [showEncouragement, setShowEncouragement] = useState(false);
-  const [lastAttemptCorrect, setLastAttemptCorrect] = useState(null);
+const CORRECT_PAUSE_MS = 900;
+const WRONG_PAUSE_MS = 2000;
+
+function PracticeMode({ user, problems, level, onReset, scoped = false, attemptSummaries = {}, setAttemptSummaries, userProgress = {}, setUserProgress }) {
+  const feedback = useFeedback();
+  const [index, setIndex] = useState(0);
+  const [answer, setAnswer] = useState('');
+  const [status, setStatus] = useState(null); // null | 'correct' | 'wrong'
   const [streak, setStreak] = useState(0);
-  const [showStreakToast, setShowStreakToast] = useState(false);
-  const [streakToastCount, setStreakToastCount] = useState(0);
-
+  const [stars, setStars] = useState(0);
+  const [hint, setHint] = useState('');
+  const [unlockOpen, setUnlockOpen] = useState(false);
   const [hasShownLevelUnlock, setHasShownLevelUnlock] = useState(false);
-
-  const handleCardClick = () => setIsFlipped(!isFlipped);
-  const handleNextCard = () => {
-    setIsFlipped(false);
-    setTimeout(() => {
-      setUserAnswer('');
-      const nextIndex = (currentCardIndex + 1) % problems.length;
-      setCurrentCardIndex(nextIndex);
-      setShowStats(false);
-      setShowEncouragement(false);
-    }, 500);
-  };
-
-  // Function to check and show level unlock notification
-  const checkAndShowLevelUnlock = async (newUserProgress) => {
-    if (hasShownLevelUnlock) return;
-    
-    const totalProblems = problems.length;
-    const completedProblems = Object.keys(newUserProgress).length;
-    
-    // Check if all problems are completed (25 problems for level 1)
-    if (totalProblems > 0 && completedProblems === totalProblems && totalProblems === 25) {
-      setHasShownLevelUnlock(true);
-      
-      try {
-        // Trigger celebration fireworks
-        triggerFireworks({ duration: 4000, particles: 400 });
-        
-        // Show the level unlock notification
-        const result = await Swal.fire({
-          title: 'Congratulations! 🎉🌟',
-          html: `
-            <div style="text-align: center; padding: 20px;">
-              <div style="font-size: 2.5rem; margin-bottom: 20px;">🎊✨🏆✨🎊</div>
-              <div style="font-size: 1.4rem; font-weight: bold; color: #6B46C1; margin-bottom: 15px;">
-                You have unlocked Level 1 Test!
-              </div>
-              <div style="font-size: 1.1rem; color: #555; margin-bottom: 20px;">
-                Amazing job completing all 25 problems! 💖<br/>
-                You're ready to take your first official test.
-              </div>
-              <div style="font-size: 1rem; color: #777;">
-                Click "Start Level 1 Test" to begin your assessment! 🚀
-              </div>
-            </div>
-          `,
-          showCancelButton: true,
-          confirmButtonText: 'Start Level 1 Test 🚀',
-          cancelButtonText: 'Continue Practicing ✏️',
-          confirmButtonColor: '#6B46C1',
-          cancelButtonColor: '#10B981',
-          background: 'linear-gradient(145deg, #FEF7FF 0%, #F3E8FF 100%)'
-        });
-
-        if (result.isConfirmed) {
-          // User wants to go to testing mode - go back to main menu
-          onReset();
-        }
-      } catch (error) {
-        console.error('Error showing level unlock notification:', error);
-      }
-    }
-  };
-
-  const fetchLast5 = async (problemId) => {
-    const key = String(problemId);
-    const summary = attemptSummaries[key];
-    if (summary) {
-      setLast5({ correctCount: summary.correctCount || 0, totalCount: summary.totalCount || (summary.attempts?.length || 0) });
-      const last = Array.isArray(summary.attempts) && summary.attempts.length > 0 ? !!summary.attempts[0].isCorrect : null;
-      setLastAttemptCorrect(last);
-      return;
-    }
-    try {
-      const res = await axios.get(`/api/problems/${problemId}/last5`, { withCredentials: true });
-      const data = res.data;
-      setLast5({ correctCount: data.correctCount || 0, totalCount: data.totalCount || 0 });
-      const last = Array.isArray(data.attempts) && data.attempts.length > 0 ? !!data.attempts[0].isCorrect : null;
-      setLastAttemptCorrect(last);
-    } catch (_) {
-      setLast5({ correctCount: 0, totalCount: 0 });
-      setLastAttemptCorrect(null);
-    }
-  };
+  const advanceTimer = useRef(null);
 
   useEffect(() => {
-    const current = problems[currentCardIndex];
-    if (current) fetchLast5(current.id);
-  }, [currentCardIndex, problems]);
+    feedback.startSession();
+    return () => clearTimeout(advanceTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useEffect(() => {
-    setShowStats(false);
-    setShowEncouragement(false);
-    let id1, id2;
-    if (!isFlipped) {
-      id1 = setTimeout(() => setShowStats(true), 1500);
-      id2 = setTimeout(() => setShowEncouragement(true), 3500);
-    }
-    return () => { if (id1) clearTimeout(id1); if (id2) clearTimeout(id2); };
-  }, [isFlipped, currentCardIndex]);
+  const current = problems[index];
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (userAnswer === '' || !/^\d+$/.test(String(userAnswer))) {
-      try {
-        await Swal.fire({
-          icon: 'warning',
-          title: 'Enter a number',
-          text: 'Please type a number before submitting.',
-          confirmButtonColor: '#a855f7',
-        });
-      } catch (_) {}
-    
-      return;
-    }
-    const currentCard = problems[currentCardIndex];
-    const isCorrect = parseInt(userAnswer, 10) === currentCard.answer;
+  const submit = () => {
+    if (status || !current) return;
+    if (answer === '' || !/^\d+$/.test(answer)) { setHint('Tap some numbers first 👆'); return; }
+    setHint('');
+    const card = current;
+    const isCorrect = parseInt(answer, 10) === card.answer;
+    setStatus(isCorrect ? 'correct' : 'wrong');
 
-    setIsFlipped(true);
-    setTimeout(async () => {
-      if (isCorrect) {
-        const nextStreak = streak + 1;
-        try {
-          if (nextStreak % 5 === 0) {
-            triggerFireworks({ duration: 2200, particles: 260 });
-            setStreakToastCount(nextStreak);
-            setShowStreakToast(true);
-            setTimeout(() => setShowStreakToast(false), 2200);
-          } else {
-            triggerFireworks({ duration: 1200, particles: 150 });
-          }
-        } catch (_) {}
-        setStreak(nextStreak);
-        await axios.post(`/api/problems/${currentCard.id}/attempt`, { correct: true }, { withCredentials: true });
-        await Swal.fire({
-          title: `Correct! ${emoji.party()}${emoji.heart()}`,
-          imageUrl: getRandomCelebrateGif(),
-          imageAlt: 'Celebrate',
-          showConfirmButton: false,
-          timer: 3000,
-          background: 'transparent',
-        });
-        await axios.post(`/api/problems/${currentCard.id}/mastered`);
-        if (setUserProgress) {
-          const newUserProgress = { ...userProgress, [currentCard.id]: true };
-          setUserProgress(newUserProgress);
-          // Check if all problems are now completed for level unlock
-          setTimeout(() => checkAndShowLevelUnlock(newUserProgress), 3500); // Wait for the success animation to finish
+    let nextProgress = userProgress;
+    if (isCorrect) {
+      const nextStreak = streak + 1;
+      setStreak(nextStreak);
+      setStars((s) => s + 1);
+      nextProgress = { ...userProgress, [card.id]: true };
+      const isNew = !userProgress[card.id];
+      const setComplete = isNew && problems.length > 0 && problems.every((p) => nextProgress[p.id]);
+      const newBest = recordStreak('practice', nextStreak);
+      feedback.correct({ streak: nextStreak, setComplete, newBest });
+      if (setUserProgress) setUserProgress(nextProgress);
+      if (setComplete) {
+        try { triggerFireworks({ duration: 2200, particles: 260 }); } catch (_) {}
+        // Original rule kept: the unlock dialog is for the 25-problem level set
+        if (!scoped && !hasShownLevelUnlock && problems.length === 25) {
+          setHasShownLevelUnlock(true);
+          setTimeout(() => setUnlockOpen(true), CORRECT_PAUSE_MS + 400);
         }
-      } else {
-        setStreak(0);
-        await axios.post(`/api/problems/${currentCard.id}/attempt`, { correct: false }, { withCredentials: true });
-        await Swal.fire({
-          title: `Incorrect ${emoji.encourage()}`,
-          text: `The correct answer is ${currentCard.answer}. You got this! ${emoji.heart()}`,
-          imageUrl: getRandomUpsetGif(),
-          imageAlt: 'Try again',
-          showConfirmButton: false,
-          timer: 3000,
-          background: 'transparent',
-        });
       }
-      setUserAnswer('');
-      const key = String(currentCard.id);
+    } else {
+      setStreak(0);
+      feedback.wrong();
+    }
+
+    // Save in the background: never blocks the UI (the attempt route also updates UserProblem.mastered)
+    (async () => {
+      try { await axios.post(`/api/problems/${card.id}/attempt`, { correct: isCorrect }, { withCredentials: true }); } catch (_) {}
+    })();
+
+    // Update the local "last 5" summary
+    if (setAttemptSummaries) {
+      const key = String(card.id);
       const prev = attemptSummaries[key] || { attempts: [], correctCount: 0, totalCount: 0 };
-      const newAttempt = { id: Date.now(), problemId: currentCard.id, isCorrect, createdAt: new Date().toISOString() };
-      const newAttempts = [newAttempt, ...(prev.attempts || [])].slice(0, 5);
-      const newCorrect = newAttempts.filter(a => a.isCorrect).length;
-      const nextSummary = { attempts: newAttempts, correctCount: newCorrect, totalCount: newAttempts.length };
-      if (setAttemptSummaries) setAttemptSummaries({ ...attemptSummaries, [key]: nextSummary });
-      fetchLast5(currentCard.id);
-      handleNextCard();
-    }, 1000);
+      const attempts = [{ id: Date.now(), problemId: card.id, isCorrect, createdAt: new Date().toISOString() }, ...(prev.attempts || [])].slice(0, 5);
+      setAttemptSummaries({ ...attemptSummaries, [key]: { attempts, correctCount: attempts.filter((a) => a.isCorrect).length, totalCount: attempts.length } });
+    }
+
+    advanceTimer.current = setTimeout(() => {
+      setAnswer('');
+      setStatus(null);
+      setIndex((i) => (i + 1) % problems.length);
+    }, isCorrect ? CORRECT_PAUSE_MS : WRONG_PAUSE_MS);
   };
 
   if (problems.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-200 to-purple-200 relative">
+      <Screen>
         <Header onReset={onReset} userName={user?.name} userImage={user?.image} />
-        <div className="flex flex-col items-center justify-center text-center p-8">
-          <h1 className="text-4xl md:text-6xl font-gochi-hand text-pink-500 mb-4">No Problems Yet</h1>
-          <p className="text-lg text-gray-700 mb-6">There aren’t any problems available for this level right now.</p>
-          <button onClick={onReset} className="px-6 py-3 md:px-8 md:py-4 text-xl md:text-2xl rounded-lg cursor-pointer bg-purple-400 text-white border-none hover:bg-purple-500">Back to Main Menu</button>
+        <div className="flex flex-1 items-center justify-center">
+          <GlassCard className="text-center">
+            <h1 className="mb-2 text-title text-neon-pink">No Problems Yet</h1>
+            <p className="mb-5 text-body text-ink-dim">There aren&apos;t any problems available for this level right now.</p>
+            <Button tone="violet" onClick={onReset}>Back to Main Menu</Button>
+          </GlassCard>
         </div>
-      </div>
+      </Screen>
     );
   }
 
-  const currentCard = problems[currentCardIndex];
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-100 to-green-100 relative">
+    <Screen>
       <Header onReset={onReset} userName={user?.name} userImage={user?.image} />
-      <div className="flex flex-col items-center justify-center text-center p-4 relative">
-        {showStreakToast && (
-          <div className="absolute top-24 right-4 z-50 bg-pink-500 text-white text-lg md:text-xl font-bold px-4 py-2 rounded-full shadow-lg pop-in">
-            🔥 {streakToastCount} in a row! 🎉
-          </div>
-        )}
-        <LevelIndicator level={level} />
-        <h1 className="text-4xl md:text-6xl font-gochi-hand text-pink-500 mb-8">Practice Mode ✏️✨</h1>
-        <div className="w-full md:grid md:grid-cols-[1fr_auto_1fr] md:items-center md:gap-6">
-          {showStats && last5.totalCount > 0 && last5.correctCount > 0 && (
-            <div className="hidden md:block md:col-start-1 md:justify-self-center text-lg text-gray-700 wave-in max-w-xs text-left">
-              You have answered this right {last5.correctCount} out of the last {Math.min(5, last5.totalCount || 0)} times. {emoji.heart()}
-            </div>
-          )}
-          <div className="w-64 h-40 md:w-72 md:h-48 [perspective:1000px] cursor-pointer mb-4 md:mb-0 md:col-start-2 md:justify-self-center">
-            <div className={`relative w-full h-full text-center transition-transform duration-500 [transform-style:preserve-3d] shadow-lg ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
-              <div className="absolute w-full h-full backface-hidden flex items-center justify-center text-3xl md:text-4xl rounded-lg bg-teal-300 text-white">
-                <p>{currentCard.problem}</p>
-              </div>
-              <div className="absolute w-full h-full backface-hidden flex items-center justify-center text-3xl md:text-4xl rounded-lg bg-green-500 text-white [transform:rotateY(180deg)]">
-                <p>{currentCard.answer}</p>
-              </div>
-            </div>
-          </div>
-          {showEncouragement && last5.totalCount > 0 && (
-            <div className="hidden md:block md:col-start-3 md:justify-self-center text-lg text-gray-700 wave-in max-w-xs text-left">
-              {lastAttemptCorrect === true
-                ? <>You answered this right last time — you got this! ✅ {emoji.heart()} {emoji.party()}</>
-                : lastAttemptCorrect === false
-                ? <>Last time was tricky — you got this! {emoji.encourage()} {emoji.heart()}</>
-                : ''}
-            </div>
-          )}
-        </div>
-        {(showStats || showEncouragement) && last5.totalCount > 0 && (
-          <div className="md:hidden w-full">
-            {showStats && last5.correctCount > 0 && (
-              <div className="mb-4 text-lg text-gray-700 wave-in">
-                You have answered this right {last5.correctCount} out of the last {Math.min(5, last5.totalCount || 0)} times. {emoji.heart()}
-              </div>
-            )}
-            {showEncouragement && (
-              <div className="mb-4 text-lg text-gray-700 wave-in">
-                {lastAttemptCorrect === true
-                  ? <>You answered this right last time — you got this! ✅ {emoji.heart()} {emoji.party()}</>
-                  : lastAttemptCorrect === false
-                  ? <>Last time was tricky — you got this! {emoji.encourage()} {emoji.heart()}</>
-                  : ''}
-              </div>
-            )}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="mt-6">
-          <input
-            type="number"
-            value={userAnswer}
-            onChange={(e) => setUserAnswer(e.target.value)}
-            className="px-4 py-2 rounded border text-xl"
-            placeholder="Type your answer"
-            required
-            min={0}
-            step={1}
-            inputMode="numeric"
-          />
-          <button type="submit" className="ml-3 px-6 py-3 text-xl rounded-lg cursor-pointer bg-teal-400 text-white border-none hover:bg-teal-500">Submit</button>
-        </form>
-        <button onClick={onReset} className="mt-6 px-6 py-3 text-xl rounded-lg cursor-pointer bg-purple-400 text-white border-none hover:bg-purple-500">Back to Main Menu</button>
+      <h1 className="sr-only">Practice Mode</h1>
+      <GameHud level={level} streak={streak} score={stars} />
+      <GifSlot />
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 sm:pt-4">
+        <QuestionCard id={current.id} problem={current.problem} answer={current.answer} typed={answer} status={status} />
+        <AttemptHints problemId={current.id} attemptSummaries={attemptSummaries} hidden={!!status} />
       </div>
-    </div>
+      <div className="flex flex-col items-center gap-2 pt-2">
+        <p className="min-h-[1.5rem] text-body font-bold text-neon-amber" role="status">{hint}</p>
+        <Keypad value={answer} onChange={setAnswer} onSubmit={submit} disabled={!!status} />
+      </div>
+
+      <Modal
+        open={unlockOpen}
+        onClose={() => setUnlockOpen(false)}
+        title="Congratulations! 🎉🌟"
+        actions={<>
+          <Button tone="lime" size="lg" onClick={() => { setUnlockOpen(false); onReset(); }}>Start Level 1 Test 🚀</Button>
+          <Button tone="ghost" onClick={() => setUnlockOpen(false)}>Continue Practicing ✏️</Button>
+        </>}
+      >
+        <p className="text-lead font-bold text-ink">You have unlocked the Level 1 Test!</p>
+        <p>Amazing job completing all 25 problems! 💖 You&apos;re ready for your first official test.</p>
+      </Modal>
+    </Screen>
   );
 }
 
