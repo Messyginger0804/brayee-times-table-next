@@ -7,6 +7,7 @@ import LevelIndicator from '../../LevelIndicator';
 import MissionMap from '../../MissionMap';
 import GradePicker, { ordinal } from '../../GradePicker';
 import AstronautStage from '../../game/AstronautStage';
+import BrandBadge from '../../braylee/BrandBadge';
 import BrayleeCheer from '../../braylee/BrayleeCheer';
 import HostAstronaut, { HOST_WELCOME, HOST_LINES } from '../../game/HostAstronaut';
 import Screen, { GlassCard } from '../../ui/Screen';
@@ -139,6 +140,7 @@ export function MenuScreen({ user, curr, stats, ui, actions }) {
     <Screen>
       <Header onReset={actions.reset} userName={user.name} menuLabel="Home" />
       <div className="flex flex-1 flex-col items-center justify-center gap-5 py-4">
+        <BrandBadge size={36} className="-mb-1" />
         <div className="flex flex-col items-center text-center">
           <Welcome user={user} />
           <h1 className="text-hero text-neon-cyan text-glow">Choose Your Mission</h1>
