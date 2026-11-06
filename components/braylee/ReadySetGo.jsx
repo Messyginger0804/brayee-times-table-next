@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Astronaut from '../space/Astronaut';
 import { pickLine } from '../../config/brayleeLines';
 import { speakCheer } from '../../lib/cheerVoice';
-import { buildSteps, nextIndex, isSkipKey, INTRO_SPEECH, REDUCED_SPEECH } from '../../lib/readySetGo';
+import { buildSteps, nextIndex, introKeyAction, INTRO_SPEECH, REDUCED_SPEECH } from '../../lib/readySetGo';
 
 function stopSpeech() { try { window.speechSynthesis?.cancel(); } catch (_) {} }
 
@@ -24,9 +24,11 @@ function useIntroSteps(steps, onDone) {
 function useSkipKeys(skip) {
   useEffect(() => {
     const onKey = (e) => {
-      if (!isSkipKey(e.key)) return;
+      const action = introKeyAction(e);
+      if (action === 'pass') return;
       e.preventDefault();
-      skip();
+      e.stopImmediatePropagation(); // nothing behind the overlay (answer input, Keypad) sees the key
+      if (action === 'skip') skip();
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);

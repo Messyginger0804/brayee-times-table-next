@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { speakCheer, speakSpelling, setMuted, isMuted, pickVoice, resetCheerVoice, CHEER_GAP_MS, CHEER_SETTLE_MS, MUTE_KEY } from '../../lib/cheerVoice';
+import { speakCheer, speakBigCheer, speakSpelling, setMuted, isMuted, pickVoice, resetCheerVoice, CHEER_GAP_MS, CHEER_SETTLE_MS, MUTE_KEY } from '../../lib/cheerVoice';
 
 let synth;
 let spoken;
@@ -64,6 +64,45 @@ describe('speakCheer', () => {
     expect(() => { speakCheer('Hi'); speakSpelling('word'); flush(); }).not.toThrow();
     vi.stubGlobal('window', undefined);
     expect(() => speakCheer('Hi')).not.toThrow();
+  });
+});
+
+describe('speakBigCheer', () => {
+  it('replaces a pending ordinary cheer', () => {
+    speakCheer('Correct!'); speakBigCheer('Mission complete!'); flush();
+    expect(spoken.map((u) => u.text)).toEqual(['Mission complete!']);
+  });
+  it('is not dropped by the throttle right after an ordinary cheer', () => {
+    speakCheer('Correct!'); flush(); finish();
+    vi.advanceTimersByTime(300);
+    speakBigCheer('Mission complete!'); flush();
+    expect(spoken.map((u) => u.text)).toEqual(['Correct!', 'Mission complete!']);
+  });
+  it('cuts off an ordinary cheer that is still playing', () => {
+    speakCheer('Correct!'); flush();
+    synth.cancel.mockClear();
+    speakBigCheer('Level up!'); flush();
+    expect(synth.cancel).toHaveBeenCalled();
+    expect(spoken.at(-1).text).toBe('Level up!');
+  });
+  it('an ordinary cheer cannot replace a pending big one', () => {
+    speakBigCheer('Level up!'); speakCheer('Correct!'); flush();
+    expect(spoken.map((u) => u.text)).toEqual(['Level up!']);
+  });
+  it('throttles ordinary cheers right after it', () => {
+    speakBigCheer('Level up!'); flush(); finish();
+    speakCheer('Next'); flush();
+    expect(spoken).toHaveLength(1);
+  });
+  it('respects mute and ignores empty text', () => {
+    speakBigCheer(''); setMuted(true); speakBigCheer('Yay'); flush();
+    expect(synth.speak).not.toHaveBeenCalled();
+  });
+  it('never beats spelling: cancelled by it, and silent while it plays', () => {
+    speakBigCheer('Level up!'); speakSpelling('Spell: cat'); flush();
+    expect(spoken.map((u) => u.text)).toEqual(['Spell: cat']);
+    speakBigCheer('Again'); flush();
+    expect(spoken).toHaveLength(1);
   });
 });
 

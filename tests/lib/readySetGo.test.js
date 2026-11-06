@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { buildSteps, totalMs, nextIndex, stepAt, isSkipKey, startAfterIntro } from '../../lib/readySetGo';
+import { buildSteps, totalMs, nextIndex, stepAt, isSkipKey, introKeyAction, startAfterIntro } from '../../lib/readySetGo';
 import { gameFx } from '../../lib/gameFx';
 
 afterEach(() => vi.useRealTimers());
@@ -104,5 +104,18 @@ describe('gameFx moments', () => {
       { type: 'correct' },
       { type: 'session' },
     ]);
+  });
+});
+
+describe('introKeyAction', () => {
+  it('skips on Enter, Space and Escape', () => {
+    for (const key of ['Enter', ' ', 'Escape']) expect(introKeyAction({ key })).toBe('skip');
+  });
+  it('blocks digits, letters and Backspace', () => {
+    for (const key of ['7', 'a', 'Backspace', 'Tab']) expect(introKeyAction({ key })).toBe('block');
+  });
+  it('lets browser shortcuts through', () => {
+    expect(introKeyAction({ key: 'r', ctrlKey: true })).toBe('pass');
+    expect(introKeyAction({ key: 'l', metaKey: true })).toBe('pass');
   });
 });

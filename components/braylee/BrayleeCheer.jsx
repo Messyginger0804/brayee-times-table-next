@@ -10,8 +10,8 @@
  *   pose    Astronaut pose: idle | welcome | correct | streak | tryAgain | levelUp. Default 'welcome'.
  *           Reduced motion forces 'idle'.
  *   size    astronaut width in px (default 120).   layout  'stack' (bubble under, default) | 'row' (bubble beside).
- *   speak   true = say the line aloud once per line via lib/cheerVoice (respects the mute toggle, throttled, and
- *           never over Spelling Bee speech). Default false.
+ *   speak   true = say the line aloud once per line via lib/cheerVoice (a big moment: beats ordinary cheers, respects the
+ *           mute toggle, and never goes over Spelling Bee speech). Default false.
  *   className  extra classes on the wrapper.
  * The line is picked after mount (no hydration mismatch) and stays stable until `moment`, `n`, `name` or `line` change.
  *
@@ -23,7 +23,7 @@ import Astronaut from '../space/Astronaut';
 import { useAvatarSrc } from '../space/AstronautHelmet';
 import { SpeechBubble } from '../game/HostAstronaut';
 import { pickLine } from '../../config/brayleeLines';
-import { speakCheer } from '../../lib/cheerVoice';
+import { speakBigCheer } from '../../lib/cheerVoice';
 
 export function BrayleeFace({ size = 40, alt = 'Braylee', className = '' }) {
   const src = useAvatarSrc(size, true);
@@ -52,7 +52,7 @@ export default function BrayleeCheer({ moment = 'idle', n, name, pose = 'welcome
   }, [moment, n, name, line]);
 
   useEffect(() => {
-    if (speak && text) speakCheer(text);
+    if (speak && text) speakBigCheer(text);
   }, [speak, text]);
 
   const row = layout === 'row';
