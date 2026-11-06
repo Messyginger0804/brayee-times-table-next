@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   GUEST_IDLE_MS, TOUCH_INTERVAL_MS, claimSeat, cookieValue, findSeatByToken, hashToken, isExpired, pickSeat,
-  guestSeatCount, guestMinIdleMs, SeatsBusyError, purgeExpired, releaseByToken, seatLabel, touchGuest, validateGuestSession, _resetTouchCache, wipeSeat,
+  guestSeatCount, guestMinIdleMs, SeatsBusyError, purgeExpired, releaseByToken, seatLabel, touchGuest, validateGuestSession, _resetTouchCache, wipeSeat, releaseDeviceSeat,
 } from '../lib/guests';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -181,6 +181,52 @@ describe('wipe is atomic', () => {
     expect(db.data.attempt).toHaveLength(1);
     expect(await releaseByToken(c.token, db, at(1000))).toBe(true);
     expect(db.data.attempt).toHaveLength(0);
+  });
+});
+
+describe('release by token', () => {
+  it('guards on the token hash only: a seat touched mid-release is still released', async () => {
+    const db = fakeDb();
+    const c = await claimSeat(db, T0);
+    const realFind = db.user.findFirst;
+    db.user.findFirst = async (a) => { const r = await realFind(a); seatOf(db, 1).lastActiveAt = at(5000); return r; }; // activity after the lookup
+    expect(await releaseByToken(c.token, db, at(1000))).toBe(true);
+    expect(seatOf(db, 1).guestTokenHash).toBeNull();
+  });
+  it('returns false when the seat changed hands between lookup and wipe, and releaseDeviceSeat then finds nothing left', async () => {
+    const db = fakeDb();
+    const c = await claimSeat(db, T0);
+    const realFind = db.user.findFirst;
+    db.user.findFirst = async (a) => { const r = await realFind(a); seatOf(db, 1).guestTokenHash = 'someone-else'; return r; };
+    expect(await releaseByToken(c.token, db, at(1000))).toBe(false);
+    db.user.findFirst = realFind;
+    expect(await releaseDeviceSeat(c.token, db, at(1000))).toBe(true); // token no longer matches any seat
+    expect(seatOf(db, 1).guestTokenHash).toBe('someone-else'); // the new owner is untouched
+  });
+  it('releaseDeviceSeat: no token or no seat is fine; a stubborn failure retries once then reports false', async () => {
+    const db = fakeDb();
+    expect(await releaseDeviceSeat(undefined, db)).toBe(true);
+    const c = await claimSeat(db, T0);
+    let calls = 0;
+    const real = db.user.updateMany;
+    db.user.updateMany = async (a) => { calls++; return a.data.guestTokenHash === null ? { count: 0 } : real(a); };
+    expect(await releaseDeviceSeat(c.token, db, at(1000))).toBe(false);
+    expect(calls).toBe(2); // tried twice, then gave up
+    db.user.updateMany = real;
+    expect(await releaseDeviceSeat(c.token, db, at(1000))).toBe(true);
+    expect(seatOf(db, 1).guestTokenHash).toBeNull();
+  });
+});
+
+describe('wipeSeat guard is required', () => {
+  it('throws without a guestTokenHash guard and changes nothing', async () => {
+    const db = fakeDb();
+    await claimSeat(db, T0);
+    const u = seatOf(db, 1);
+    const before = { ...u };
+    await expect(wipeSeat(db, u.id, {})).rejects.toThrow(/guard/);
+    await expect(wipeSeat(db, u.id, {}, { lastActiveAt: u.lastActiveAt })).rejects.toThrow(/guard/);
+    expect(u).toEqual(before);
   });
 });
 

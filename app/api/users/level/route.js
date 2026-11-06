@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
-import { getUserId } from '../../_utils';
+import { guestSafe } from '../../../../lib/guestWrite';
+import { requireActor } from '../../_utils';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
-  const userId = await getUserId();
-  if (!userId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
+  const actor = await requireActor();
+  if (actor instanceof NextResponse) return actor;
+  const userId = actor.id;
   const body = await req.json().catch(() => ({}));
   const next = parseInt(body?.level, 10);
   if (!Number.isInteger(next) || next < 1 || next > 2) {
@@ -28,7 +30,9 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Complete all Level 1 problems in practice before unlocking Level 2' }, { status: 400 });
       }
     }
-    const updated = await prisma.user.update({ where: { id: userId }, data: { level: next } });
+    const w = await guestSafe(actor, (tx) => tx.user.update({ where: { id: userId }, data: { level: next } }));
+    if (w.lost) return w.lost;
+    const updated = w.value;
     return NextResponse.json({ id: updated.id, name: updated.name, level: updated.level, image: updated.image });
   } catch (e) {
     return NextResponse.json({ error: 'Failed to update level' }, { status: 500 });

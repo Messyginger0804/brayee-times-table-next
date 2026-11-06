@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../../lib/prisma';
+import { guestSafe } from '../../../../lib/guestWrite';
 import { getSkillSummary, getLibrarySkill, isProblemSkill, evaluateWindow, WINDOW_DEFAULT, LEVEL_ADVANCE_WINDOW } from '../../../../lib/mathSkills';
 import { checkAnswer } from '../../../../lib/curriculum/math/index.js';
-import { requireUserId } from '../../_utils';
+import { requireActor } from '../../_utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +32,9 @@ const str = (v, max) => typeof v === 'string' && v.length > 0 && v.length <= max
 // level meet the skill's accuracyPct -> next level. Last level: the last `window` (20) meet it -> skill mastered.
 // Times-table skills backed by Problem rows are rejected: use /api/problems/[id]/attempt for those.
 export async function POST(req) {
-  const uid = await requireUserId();
-  if (uid instanceof NextResponse) return uid;
+  const actor = await requireActor();
+  if (actor instanceof NextResponse) return actor;
+  const uid = actor.id;
   let b;
   try { b = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
   const skill = getSkillSummary(b?.skillId);
@@ -50,7 +51,7 @@ export async function POST(req) {
   const correct = check.correct;
   const win = skill.mastery.window || WINDOW_DEFAULT;
 
-  const result = await prisma.$transaction(async (tx) => {
+  const w = await guestSafe(actor, async (tx) => {
     await tx.mathSkillProgress.upsert({
       where: { userId_skillId: { userId: uid, skillId: skill.id } },
       create: { userId: uid, skillId: skill.id }, update: {},
@@ -73,6 +74,8 @@ export async function POST(req) {
     const u = await tx.mathSkillProgress.update({ where: { id: p.id }, data: next });
     return { u, leveledUp, masteredNow };
   });
+  if (w.lost) return w.lost;
+  const result = w.value;
 
   const r = Array.isArray(result.u.recent) ? result.u.recent : [];
   return NextResponse.json({

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { clientIp, hit } from '../../../../lib/rateLimit';
 import { isSchemaMissing, maintenanceResponse } from '../../../../lib/dbErrors';
-import { GUEST_COOKIE, SeatsBusyError, claimSeat, findSeatByToken, guestCookieOptions, releaseByToken, seatLabel } from '../../../../lib/guests';
+import { GUEST_COOKIE, SeatsBusyError, claimSeat, findSeatByToken, guestCookieOptions, releaseDeviceSeat, seatLabel } from '../../../../lib/guests';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +46,10 @@ async function handle(req) {
   if (!rl.ok) {
     return NextResponse.json({ error: 'Whoa, slow down! Try again in a few minutes. 🚀' }, { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } });
   }
-  if (existing) await releaseByToken(existing);
+  if (existing && !(await releaseDeviceSeat(existing))) {
+    // the old seat is still held by this device: claim nothing, so the device can never hold two
+    return NextResponse.json({ error: 'Hmm, that did not work. Try again in a moment! 🚀' }, { status: 503, headers: { 'Retry-After': '5' } });
+  }
   const { user, token } = await claimSeat();
   const res = NextResponse.json({ seat: user.guestSeat, label: seatLabel(user.guestSeat) });
   res.cookies.set(GUEST_COOKIE, token, guestCookieOptions);

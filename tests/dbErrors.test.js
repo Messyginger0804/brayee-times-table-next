@@ -14,13 +14,21 @@ describe('isSchemaMissing', () => {
     expect(isSchemaMissing({ code: 'P2022', meta: { column: 'User.nickname' } })).toBe(false);
     expect(isSchemaMissing({ code: 'P2022', meta: { column: 'Problem.grade' } })).toBe(false);
     expect(isSchemaMissing({ code: 'P2021', meta: { table: 'public.Widget' } })).toBe(false);
-    expect(isSchemaMissing({ code: 'P2022' })).toBe(false);
+    // no usable identifier (missing or "(not available)"): unknown target, so treat as not migrated
+    expect(isSchemaMissing({ code: 'P2022' })).toBe(true);
+    expect(isSchemaMissing({ code: 'P2022', meta: { column: '(not available)' } })).toBe(true);
+    expect(isSchemaMissing({ code: 'P2021', meta: { table: '(not available)' }, message: 'The table does not exist' })).toBe(true);
   });
 
   it('matches P2010 only for a Postgres "does not exist" error naming one of them', () => {
     expect(isSchemaMissing({ code: 'P2010', meta: { code: '42703', message: 'column "isGuest" does not exist' } })).toBe(true);
     expect(isSchemaMissing({ code: 'P2010', message: 'Raw query failed. Code: `42P01`. Message: `relation "MathAttempt" does not exist`' })).toBe(true);
+    // unqualified generic names from these migrations
+    for (const c of ['grade', 'tier', 'source']) {
+      expect(isSchemaMissing({ code: 'P2010', meta: { code: '42703', message: `column \"${c}\" does not exist` } })).toBe(true);
+    }
     expect(isSchemaMissing({ code: 'P2010', meta: { code: '42703', message: 'column "somethingElse" does not exist' } })).toBe(false);
+    expect(isSchemaMissing({ code: 'P2010', meta: { code: '23505', message: 'duplicate key on grade' } })).toBe(false);
     expect(isSchemaMissing({ code: 'P2010', meta: { code: '23505', message: 'duplicate key value violates "guestSeat"' } })).toBe(false);
     expect(isSchemaMissing({ code: 'P2010', meta: { code: '57014', message: 'canceling statement due to timeout on isGuest' } })).toBe(false);
   });

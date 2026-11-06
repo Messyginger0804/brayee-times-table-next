@@ -5,20 +5,20 @@ const cookieGet = vi.fn();
 vi.mock('next/headers', () => ({ cookies: () => ({ get: cookieGet }) }));
 vi.mock('../../lib/guests', async () => {
   const actual = await vi.importActual('../../lib/guests');
-  return { ...actual, claimSeat: vi.fn(), findSeatByToken: vi.fn(), releaseByToken: vi.fn() };
+  return { ...actual, claimSeat: vi.fn(), findSeatByToken: vi.fn(), releaseDeviceSeat: vi.fn() };
 });
 vi.mock('../../lib/prisma', () => ({ prisma: { user: { findUnique: vi.fn() }, spellingWord: { findMany: vi.fn() } } }));
 vi.mock('../../app/api/_utils', () => ({ getUserId: vi.fn() }));
 
 import { prisma } from '../../lib/prisma';
 import { getUserId } from '../../app/api/_utils';
-import { GUEST_COOKIE, claimSeat, findSeatByToken, releaseByToken } from '../../lib/guests';
+import { GUEST_COOKIE, claimSeat, findSeatByToken, releaseDeviceSeat } from '../../lib/guests';
 import { POST as claimPOST } from '../../app/api/guest/claim/route';
 import { GET as statusGET } from '../../app/api/guest/status/route';
 import { GET as wordsGET } from '../../app/api/spelling/words/route';
 import fallbackWords from '../../lib/spellingWords.json';
 
-beforeEach(() => { vi.clearAllMocks(); cookieGet.mockReturnValue(undefined); });
+beforeEach(() => { vi.clearAllMocks(); cookieGet.mockReturnValue(undefined); releaseDeviceSeat.mockResolvedValue(true); });
 const setCookie = (res) => res.headers.get('set-cookie') || '';
 
 describe('POST /api/guest/claim', () => {
@@ -48,13 +48,22 @@ describe('POST /api/guest/claim', () => {
     const res = await claimPOST(jsonReq('not json'));
     expect(await res.json()).toEqual({ seat: 12, label: '012' });
     expect(setCookie(res)).toContain(`${GUEST_COOKIE}=fresh`);
-    expect(releaseByToken).not.toHaveBeenCalled();
+    expect(releaseDeviceSeat).not.toHaveBeenCalled();
   });
   it('new releases this device\'s previous seat first', async () => {
     cookieGet.mockReturnValue({ value: 'old' });
     claimSeat.mockResolvedValue({ user: { guestSeat: 1 }, token: 'n' });
     await claimPOST(jsonReq({ mode: 'new' }));
-    expect(releaseByToken).toHaveBeenCalledWith('old');
+    expect(releaseDeviceSeat).toHaveBeenCalledWith('old');
+  });
+  it('new: if the old seat cannot be released the device claims nothing (never two seats) and gets a clean 503', async () => {
+    cookieGet.mockReturnValue({ value: 'old' });
+    releaseDeviceSeat.mockResolvedValue(false);
+    const res = await claimPOST(jsonReq({ mode: 'new' }));
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toMatch(/try again/i);
+    expect(claimSeat).not.toHaveBeenCalled();
+    expect(setCookie(res)).not.toContain(GUEST_COOKIE);
   });
 });
 
