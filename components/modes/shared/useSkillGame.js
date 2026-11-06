@@ -4,6 +4,7 @@ import axios from 'axios';
 import { triggerFireworks } from '../../../lib/fireworks';
 import { recordStreak } from '../../../lib/bestStreak';
 import { generateProblem, checkAnswer, createRng } from '../../../lib/curriculum/math/index.js';
+import { startAfterIntro } from '../../../lib/readySetGo';
 import { kidHint, pauseMs, buildAttemptPayload, resolveProgress, celebrationFor } from './skillLogic';
 
 async function postAttempt(payload) {
@@ -58,9 +59,10 @@ export function useSkillGame({ skillId, skill, feedback, levelRef, setProg, setL
 
   useEffect(() => {
     if (skill && skill.source === 'generated' && skill.unlocked) {
-      feedback.startSession();
-      next(levelRef.current);
+      // First problem (and its response-time clock) starts only after the Ready-set-go intro
+      return startAfterIntro(() => feedback.startSession({ intro: true }), () => next(levelRef.current));
     }
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skill?.id]);
 

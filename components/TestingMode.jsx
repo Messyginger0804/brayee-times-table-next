@@ -22,7 +22,7 @@ function TestingMode({ user, problems, level, onLevelUp, onReset, attemptSummari
 
   const restartGame = () => {
     setIndex(0); setScore(0); setGameOver(false); setPassed(false); setAnswer(''); setStatus(null); setStreak(0);
-    feedback.startSession({ withGif: false });
+    feedback.startSession({ withGif: false, intro: true });
   };
 
   const current = problems[index];
