@@ -70,6 +70,6 @@ describe('requireProblemRequest', () => {
   });
   it('returns both ids on success', async () => {
     getServerSession.mockResolvedValue({ user: { id: '5' } });
-    expect(await requireProblemRequest({ id: '12' })).toEqual({ userId: 5, problemId: 12 });
+    expect(await requireProblemRequest({ id: '12' })).toEqual({ userId: 5, actor: { id: 5, gk: null }, problemId: 12 });
   });
 });

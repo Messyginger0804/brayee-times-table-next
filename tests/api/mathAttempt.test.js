@@ -10,7 +10,7 @@ vi.mock('../../lib/prisma', () => ({ prisma: { $transaction: vi.fn((fn) => fn(tx
 vi.mock('../../app/api/_utils', async () => {
   const { NextResponse } = await import('next/server');
   const uid = vi.fn();
-  return { requireUserId: vi.fn(async () => (await uid()) || NextResponse.json({ error: 'Not logged in' }, { status: 401 })), __uid: uid };
+  return { requireActor: vi.fn(async () => { const id = await uid(); return id ? { id, gk: null } : NextResponse.json({ error: 'Not logged in' }, { status: 401 }); }), __uid: uid };
 });
 import * as utils from '../../app/api/_utils';
 import { prisma } from '../../lib/prisma';

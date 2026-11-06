@@ -2,26 +2,34 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextResponse } from 'next/server';
 import { jsonReq, getReq } from './helpers';
 
-vi.mock('../../lib/prisma', () => ({
-  prisma: {
+vi.mock('../../lib/prisma', () => {
+  const prisma = {
     user: { findUnique: vi.fn(), update: vi.fn() },
     problem: { findMany: vi.fn(), update: vi.fn() },
     userProblem: { findMany: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
     attempt: { create: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
-  },
-}));
+    test: { create: vi.fn() },
+    $queryRaw: vi.fn(),
+  };
+  prisma.$transaction = vi.fn((fn) => fn(prisma)); // writes run through lib/guestWrite.js
+  return { prisma };
+});
 vi.mock('../../app/api/_utils', async () => {
   const { NextResponse: NR } = await import('next/server');
   const getUserId = vi.fn();
   return {
     getUserId,
+    requireActor: vi.fn(async () => {
+      const id = await getUserId();
+      return id ? { id, gk: null } : NR.json({ error: 'Not logged in' }, { status: 401 });
+    }),
     requireUserId: vi.fn(async () => (await getUserId()) || NR.json({ error: 'Not logged in' }, { status: 401 })),
     requireProblemRequest: vi.fn(async (params) => {
       const userId = await getUserId();
       if (!userId) return { error: NR.json({ error: 'Not logged in' }, { status: 401 }) };
       const problemId = parseInt(params.id, 10);
       if (!Number.isInteger(problemId)) return { error: NR.json({ error: 'Invalid problem id' }, { status: 400 }) };
-      return { userId, problemId };
+      return { userId, actor: { id: userId, gk: null }, problemId };
     }),
   };
 });

@@ -40,6 +40,7 @@ const mk = async (extra = {}) => ({
 });
 let compares;
 beforeEach(async () => {
+  process.env.NEXTAUTH_SECRET = 'test-secret-one';
   _resetRateLimits();
   state.now = () => Date.now();
   state.users = [await mk()];
