@@ -5,7 +5,7 @@ import Providers from './providers';
 
 const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : 'https://braylee-times-table.vercel.app';
+  : 'https://braylee-space-academy.vercel.app';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
