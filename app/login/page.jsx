@@ -2,6 +2,7 @@
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import Screen, { GlassCard } from '../../components/ui/Screen';
+import BrandBadge from '../../components/braylee/BrandBadge';
 import HostAstronaut from '../../components/game/HostAstronaut';
 import GuestButtons from './_components/GuestButtons';
 import CredentialsForm from './_components/CredentialsForm';
@@ -24,8 +25,8 @@ export default function LoginPage() {
         className="w-full max-w-sm"
       >
         <div className="mb-4 text-center">
+          <BrandBadge as="h1" className="mb-4" />
           <HostAstronaut size={150} className="mb-3" />
-          <h1 className="text-hero text-neon-cyan text-glow">Times Tables Mission Control</h1>
           <p className="mt-1 text-lead text-ink-dim">Ready for blast off?</p>
         </div>
 

@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  esbuild: { jsx: "automatic" }, // components use the automatic JSX runtime (as Next does)
   test: {
     coverage: {
       provider: "v8",

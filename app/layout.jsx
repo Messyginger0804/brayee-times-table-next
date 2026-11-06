@@ -3,9 +3,18 @@ import "./globals.css";
 import '@fontsource-variable/fredoka';
 import Providers from './providers';
 
+const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : 'https://braylee-times-table.vercel.app';
+
 export const metadata = {
-  title: "Braylee's Times Tables",
+  metadataBase: new URL(SITE_URL),
+  title: { default: "Braylee's Mission Control", template: "%s · Braylee's Mission Control" },
   description: "Times tables and spelling bee practice for kids",
+  applicationName: "Braylee's Mission Control",
+  appleWebApp: { title: 'Braylee', capable: true, statusBarStyle: 'black-translucent' },
+  openGraph: { siteName: "Braylee's Mission Control", type: 'website' },
+  twitter: { card: 'summary_large_image' },
 };
 
 export const viewport = {
