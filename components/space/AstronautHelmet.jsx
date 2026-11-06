@@ -46,10 +46,10 @@ function AstronautHelmet({ size = 96, float = true, photo = true, className = ''
       <div className="absolute inset-0 rounded-full border-[3px] border-neon-cyan bg-gradient-to-b from-space-600 to-space-800" />
       <div className="absolute rounded-full border border-ink/40 bg-space-950 shadow-[inset_0_0_14px_rgba(56,240,255,0.5)]" style={{ inset: '8%' }} />
       {/* Visor content */}
-      <div className="absolute overflow-hidden rounded-full bg-space-700" style={{ inset: '11%' }}>
+      <div className="absolute overflow-hidden rounded-full bg-space-950" style={{ inset: '11%' }}>
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt="Your astronaut photo" className="h-full w-full object-cover" style={{ objectPosition: '50% 40%' }} />
+          <img src={src} alt="Your astronaut photo" className="h-full w-full object-contain" />
         ) : (
           <div role="img" aria-label="Astronaut" className="flex h-full w-full items-center justify-center" style={{ fontSize: size * 0.5 }}>👩‍🚀</div>
         )}

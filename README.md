@@ -73,7 +73,7 @@ API Overview
 
 Notes
 
-- Public assets (Braylee.jpg and GIFs) are copied under `public/`.
+- Public assets (Braylee's cutout in `public/braylee/` and GIFs) are copied under `public/`.
 - Tailwind and the "Gochi Hand" Google font are configured to match the original styling.
 
 # brayee-times-table-next
