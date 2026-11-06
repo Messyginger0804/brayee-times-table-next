@@ -12,6 +12,6 @@ The optional `"host"` key names which entry is shown to everyone (no login) by
 `GET /api/avatar/host?size=160|512`, e.g. `"host": "ExampleUserName"`. It may
 also be a size map or a path relative to `private/`. Files are read only from
 `private/`, never `public/`. If `host` is missing or the file is absent
-(Vercel, fresh checkout) the endpoint returns 404 and the UI shows the emoji
+(Vercel, fresh checkout) the endpoint redirects to the committed photo `public/braylee/face-{160,512}.webp` (regenerate with `node scripts/build-braylee-face.mjs`)
 astronaut. In Docker, mount `private/` read-only (see docker-compose.yml)
 rather than baking it into the image.

@@ -3,9 +3,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import Astronaut, { ASTRONAUT_RATIO, POSE_MS } from '../space/Astronaut';
 import { gameFx } from '../../lib/gameFx';
+import { pickLine } from '../../config/brayleeLines';
+import { speakCheer } from '../../lib/cheerVoice';
 
 const PRIORITY = { idle: 0, welcome: 1, correct: 2, tryAgain: 3, streak: 4, levelUp: 5 };
-const LINES = ['You got this!', 'So close!', 'Try again, Cadet!', 'Nice try, Cadet!', 'Almost there!', 'Keep going!', 'Shake it off, Cadet!'];
+// gameFx event -> pose and Braylee line moment. An event may carry its own `moment` (e.g. 'spellingCorrect').
+const REACTIONS = {
+  correct: ['correct', 'correct'],
+  wrong: ['tryAgain', 'wrong'],
+  streak: ['streak', 'streak'],
+  levelUp: ['levelUp', 'levelUp'],
+  session: ['welcome', 'session'],
+};
 const norm = (t) => String(t).toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
 // A bubble line that the GIF card already says (e.g. "So close!" vs "So close! Try that one again") is skipped
 const repeatsGif = (line) => {
@@ -15,8 +24,10 @@ const repeatsGif = (line) => {
 };
 
 /**
- * The astronaut plus its speech bubble. Listens to gameFx events (correct / wrong / streak / levelUp /
- * session), plays the matching reaction once, then returns to idle. Plays `welcome` on mount.
+ * Braylee (her face in the helmet, for every player) plus her speech bubble. Listens to gameFx events
+ * (correct / wrong / streak / levelUp / session), plays the matching pose once, shows a cheer line from
+ * config/brayleeLines.js (skipped when the GIF card already says it) and speaks that same line via cheerVoice.
+ * Plays `welcome` on mount (no bubble). Higher-priority poses are never interrupted.
  * Never takes pointer events. The bubble text lives in a polite live region.
  */
 export default function AstronautStage({ size = 92, listen = true, className = 'relative' }) {
@@ -25,27 +36,36 @@ export default function AstronautStage({ size = 92, listen = true, className = '
   const [line, setLine] = useState('');
   const cur = useRef('welcome');
   const timer = useRef(null);
-  const lineIdx = useRef(Math.floor(Math.random() * LINES.length));
+  const lastLine = useRef('');
 
-  const play = useCallback((next) => {
+  // A fresh line for `moment` that the GIF card is not already saying; '' if every option repeats it
+  const chooseLine = useCallback((moment, n) => {
+    const tried = [];
+    for (let i = 0; i < 6; i++) {
+      const l = pickLine(moment, { n, avoid: [lastLine.current, ...tried] });
+      if (!l || tried.includes(l)) break;
+      if (!repeatsGif(l)) return l;
+      tried.push(l);
+    }
+    return '';
+  }, []);
+
+  const play = useCallback((next, moment, n) => {
     // A bigger moment is never interrupted by a smaller one (e.g. correct right after streak)
     if (PRIORITY[next] < PRIORITY[cur.current] && cur.current !== 'idle') return;
     cur.current = next;
     setPose(next);
-    if (next === 'tryAgain') {
-      let tries = 0;
-      do { lineIdx.current = (lineIdx.current + 1) % LINES.length; tries++; } while (repeatsGif(LINES[lineIdx.current]) && tries < LINES.length);
-      setLine(repeatsGif(LINES[lineIdx.current]) ? '' : LINES[lineIdx.current]);
-    } else {
-      setLine('');
-    }
+    const text = chooseLine(moment, n);
+    lastLine.current = text || lastLine.current;
+    setLine(text);
+    speakCheer(text);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       cur.current = 'idle';
       setPose('idle');
       setLine('');
     }, POSE_MS[next]);
-  }, []);
+  }, [chooseLine]);
 
   useEffect(() => {
     timer.current = setTimeout(() => { cur.current = 'idle'; setPose('idle'); }, POSE_MS.welcome);
@@ -55,11 +75,8 @@ export default function AstronautStage({ size = 92, listen = true, className = '
   useEffect(() => {
     if (!listen) return undefined;
     return gameFx.on((e) => {
-      if (e.type === 'correct') play('correct');
-      else if (e.type === 'wrong') play('tryAgain');
-      else if (e.type === 'streak') play('streak');
-      else if (e.type === 'levelUp') play('levelUp');
-      else if (e.type === 'session') play('welcome');
+      const r = REACTIONS[e.type];
+      if (r) play(r[0], e.moment || r[1], e.n);
     });
   }, [listen, play]);
 
@@ -68,7 +85,7 @@ export default function AstronautStage({ size = 92, listen = true, className = '
       className={`pointer-events-none shrink-0 ${className}`}
       style={{ width: size, height: Math.round(size * ASTRONAUT_RATIO) }}
     >
-      <Astronaut pose={pose} size={size} />
+      <Astronaut host hostAlt="Braylee" pose={pose} size={size} />
       {/* The bubble hangs below the astronaut so it never covers the level / streak / stars chips beside or above it */}
       <div aria-live="polite" role="status" className="pointer-events-none absolute left-1 top-[94%] z-50">
         {line && (

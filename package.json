@@ -48,6 +48,7 @@
     "eslint-config-next": "14.2.4",
     "postcss": "8.4.41",
     "prisma": "^5.15.1",
+    "sharp": "^0.35.5",
     "tailwindcss": "3.4.7",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
