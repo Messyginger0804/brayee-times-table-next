@@ -2,6 +2,7 @@ import Header from '../../Header';
 import Screen from '../../ui/Screen';
 import Button from '../../ui/Button';
 import Modal from '../../ui/Modal';
+import BrayleeCheer from '../../braylee/BrayleeCheer';
 
 export default function TestResult({ user, onReset, onRetry, passed, score, passOpen, setPassOpen, passedLevel }) {
   const onClosePass = () => setPassOpen(false);
@@ -10,9 +11,16 @@ export default function TestResult({ user, onReset, onRetry, passed, score, pass
     <Screen>
       <Header onReset={onReset} userName={user?.name} userImage={user?.image} />
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-        <div aria-hidden="true" className="text-jumbo">{passed ? '🏆' : '🌠'}</div>
+        <BrayleeCheer
+          moment={passed ? 'testPass' : 'gameOver'}
+          pose={passed ? 'levelUp' : 'tryAgain'}
+          size={140}
+          speak
+        />
+        <div aria-hidden="true" className="text-number">{passed ? '🏆' : '🌠'}</div>
         <h1 className="text-hero text-neon-pink">{passed ? 'Mission Complete!' : 'Game Over'}</h1>
         <p className="text-lead">Your final score is <strong className="text-neon-lime">{score}</strong></p>
+        {!passed && <p className="text-body text-ink-dim">Every try makes you stronger. Let&apos;s go again! 💪</p>}
         <Button tone="pink" size="lg" onClick={onRetry}>Try Again 🔁</Button>
         <Button tone="ghost" onClick={onReset}>Back to Main Menu</Button>
       </div>

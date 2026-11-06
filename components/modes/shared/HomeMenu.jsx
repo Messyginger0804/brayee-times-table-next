@@ -103,6 +103,7 @@ function PickedSkillModal({ picked, onClose, onStart }) {
   );
   return (
     <Modal open={!!picked} onClose={onClose} title={locked ? 'Not yet, Cadet! 🔒' : 'Pick your way to play'} actions={actions}>
+      {locked && <BrayleeCheer moment="locked" pose="tryAgain" size={88} speak className="mb-3" />}
       {locked ? 'Finish the mission before this one to open it.' : picked?.name}
     </Modal>
   );
