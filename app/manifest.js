@@ -1,8 +1,8 @@
 export default function manifest() {
   return {
-    name: "Braylee's Mission Control",
-    short_name: 'Braylee',
-    description: 'Times tables and spelling bee practice for kids',
+    name: "Braylee's Space Academy",
+    short_name: 'Space Academy',
+    description: 'Math & spelling missions for space cadets',
     start_url: '/',
     display: 'standalone',
     background_color: '#050816',

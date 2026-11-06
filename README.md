@@ -1,4 +1,6 @@
-Braylee's Times Tables — Next.js
+Braylee's Space Academy — Next.js
+
+Math & spelling missions for space cadets.
 
 This is a Next.js port of the existing Vite + Express app in `../braylees_times_table`, preserving the same features:
 

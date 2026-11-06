@@ -9,12 +9,12 @@ const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: "Braylee's Mission Control", template: "%s · Braylee's Mission Control" },
-  description: "Times tables and spelling bee practice for kids",
-  applicationName: "Braylee's Mission Control",
-  appleWebApp: { title: 'Braylee', capable: true, statusBarStyle: 'black-translucent' },
-  openGraph: { siteName: "Braylee's Mission Control", type: 'website' },
-  twitter: { card: 'summary_large_image' },
+  title: { default: "Braylee's Space Academy", template: "%s · Braylee's Space Academy" },
+  description: "Math & spelling missions for space cadets",
+  applicationName: "Braylee's Space Academy",
+  appleWebApp: { title: 'Space Academy', capable: true, statusBarStyle: 'black-translucent' },
+  openGraph: { siteName: "Braylee's Space Academy", title: "Braylee's Space Academy", description: "Math & spelling missions for space cadets", type: 'website' },
+  twitter: { card: 'summary_large_image', title: "Braylee's Space Academy", description: "Math & spelling missions for space cadets" },
 };
 
 export const viewport = {

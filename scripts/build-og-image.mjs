@@ -35,8 +35,8 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
   <circle cx="270" cy="315" r="330" fill="url(#halo)"/>
   <g font-family="${FONT_FAMILIES}" font-weight="700">
     <text x="530" y="270" font-size="68" fill="#38f0ff">Braylee's</text>
-    <text x="530" y="355" font-size="68" fill="#ffffff">Mission Control</text>
-    <text x="532" y="425" font-size="30" font-weight="400" fill="#cbc3ff">Times tables &amp; spelling bee practice</text>
+    <text x="530" y="355" font-size="68" fill="#ffffff">Space Academy</text>
+    <text x="532" y="425" font-size="25" font-weight="400" fill="#cbc3ff">Math &amp; spelling missions for space cadets</text>
   </g>
   <rect x="532" y="458" width="150" height="8" rx="4" fill="#b6ff3b"/>
 </svg>`;
