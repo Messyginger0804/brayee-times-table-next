@@ -42,6 +42,7 @@ const MODE_VIEWS = {
 
 function pickContent(mode, ctx, ui, actions) {
   const { user, data } = ctx;
+  if (ui.cadetWelcome) return null; // one overlay at a time: the cadet popup goes first, grade picker / menu only after it
   const modeView = MODE_VIEWS[mode];
   if (modeView) return modeView(ctx);
   if (data.curr && !data.curr.grade) return <GradeGate key="grade" onPicked={() => actions.fetchMissions()} />;
@@ -81,10 +82,9 @@ function AppInner() {
   if (loading || !user || problemsLoading) return <LoadingView loading={loading || !user} />;
 
   const ctx = { user, scopedSkill, filteredProblems, resetGame, handleLevelUp, data };
-  const ui = { gradeOpen, lockedOpen, pickedSkill, setGradeOpen, setLockedOpen, setPickedSkill };
+  const ui = { cadetWelcome, gradeOpen, lockedOpen, pickedSkill, setGradeOpen, setLockedOpen, setPickedSkill };
   const actions = { reset: resetGame, setMode, pickMission, startScoped, fetchMissions };
-  // One overlay at a time on landing: the cadet popup goes first, the grade picker / menu only after it is dismissed.
-  const content = cadetWelcome ? null : pickContent(mode, ctx, ui, actions);
+  const content = pickContent(mode, ctx, ui, actions);
 
   return (
     <>
