@@ -10,10 +10,11 @@ import { NAME_MAX, STUDENT_ID_MAX, STUDENT_ID_PATTERN, validateNickname, validat
 const FIELD = 'w-full min-h-[3.25rem] rounded-chunk border-2 border-white/20 bg-space-900/80 px-4 text-lead text-ink placeholder:text-ink-dim/80 focus:border-neon-cyan focus:outline-none focus:ring-2 focus:ring-neon-cyan/60';
 const FORM_ID = 'save-cadet-form';
 
-function Field({ id, label, children }) {
+function Field({ id, label, help, children }) {
   return (
     <div className="text-left">
       <label htmlFor={id} className="mb-1 block text-body font-bold text-ink">{label}</label>
+      {help ? <p id={`${id}-help`} className="mb-1 text-left text-body text-ink-dim">{help}</p> : null}
       {children}
     </div>
   );
@@ -25,12 +26,12 @@ function SaveForm({ form, setForm, error, onSubmit }) {
   const idProps = { maxLength: STUDENT_ID_MAX, pattern: STUDENT_ID_PATTERN, placeholder: '•••••', className: `${FIELD} tracking-[0.5em]` };
   return (
     <form id={FORM_ID} onSubmit={onSubmit} className="flex flex-col gap-3" autoComplete="off" data-form-type="other" noValidate>
-      <Field id="cadet-name" label="Pick a cadet name">
+      <Field id="cadet-name" label="Your cadet name">
         <input id="cadet-name" name="cadet_nickname" type="text" className={FIELD} value={form.name} maxLength={NAME_MAX} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
           data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" onChange={(e) => set('name', e.target.value)} />
       </Field>
-      <Field id="cadet-secret" label="Your student ID (we scramble it so nobody can read it)">
-        <SecretInput id="cadet-secret" name="student_number" {...idProps} value={form.secret} onChange={(v) => set('secret', v)} />
+      <Field id="cadet-secret" label="Student ID" help="We scramble it so nobody can read it">
+        <SecretInput id="cadet-secret" name="student_number" describedBy="cadet-secret-help" {...idProps} value={form.secret} onChange={(v) => set('secret', v)} />
       </Field>
       <Field id="cadet-confirm" label="Type your student ID again">
         <SecretInput id="cadet-confirm" name="student_number_again" {...idProps} value={form.confirm} onChange={(v) => set('confirm', v)} />

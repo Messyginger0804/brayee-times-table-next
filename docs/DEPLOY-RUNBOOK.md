@@ -73,14 +73,15 @@ Use a shell where `DATABASE_URL` points at prod, from a checkout of the deploy c
    Verify: `select count(*) from "User" where not "isGuest"` -> 1; Braylee's attempt count = the dry-run sum; `Problem` / `SpellingWord` counts unchanged vs step 2. A second `--confirm` is a no-op ("merge: (none left)", "delete: 0 users").
 7. **Set the env vars** in the Vercel production environment: `CRON_SECRET` (required), `GUEST_SEATS` / `GUEST_MIN_IDLE_MINUTES` only if not using the defaults, and check `NEXTAUTH_SECRET` / `NEXTAUTH_URL` exist. Optionally add a Vercel Firewall rate-limit rule on the auth and guest-claim routes (the app has a best-effort in-memory limit per instance, see below).
 8. **Merge `ui-overhaul` into `main`.** This deploys. Watch the build.
-9. **Smoke test:**
+9. **Set Braylee's student ID** (right after the deploy, before the smoke test; see "Student ID rule" below): `npm run db:set-student-id -- --name Braylee --i-have-a-backup` with `DATABASE_URL` pointing at prod. Expect `updated 1 row(s)`.
+10. **Smoke test:**
    - Braylee + student ID logs in and shows the merged history; `/api/auth/me` returns `isGuest:false`.
    - A wrong student ID returns 401; the 5th wrong one returns 429 with a "short break" message; the right one is refused while resting.
    - "Play as Guest" gives Cadet 001.
    - `/api/spelling/words` returns `"source":"db"`.
    - `POST /api/auth/register` -> 404; `/parent` -> 404; `POST /api/problems/1/score` and `/mastered` -> 404.
    - `/api/cron/purge-guests` without the bearer -> 401, with it -> `{"purged":0}`.
-10. **Rollback plan** (have it ready before step 8):
+11. **Rollback plan** (have it ready before step 8):
     - App: redeploy the previous build. The new columns/tables are ignored by it, so the migrated schema keeps working. Note the old (lost) prod code is what hashes PINs; the repo's pre-overhaul code compares plaintext and would not log in hashed users. Accounts deleted by step 6 do not come back without the backup.
     - Data: the ONLY undo for step 6 is the step 1 backup. Restore into a NEW database (`createdb`, `pg_restore --no-owner -d <new> <backup>`), repoint `DATABASE_URL`; never restore over the live DB.
     - Baseline row (step 4): `delete from _prisma_migrations where migration_name = '20260301000000_baseline_prod_schema';` (no schema change to undo).
@@ -164,10 +165,16 @@ New hashes are `bcrypt(HMAC-SHA256(pepper, secret))`. The pepper is derived from
 
 **Rehash rule:** the legacy-to-peppered rewrite on sign-in only happens when `VERCEL_ENV=production` (or `PIN_REHASH=1`, for local testing). Preview deployments and laptops only verify, so pointing a non-production process (with a different `NEXTAUTH_SECRET`) at the prod DB can never rewrite Braylee's hash under the wrong key. New saves are peppered in every environment, since each has its own DB. After deploy, Braylee's hash upgrades on her first production sign-in.
 
-**Rotating `NEXTAUTH_SECRET` invalidates every peppered student ID** (Braylee and all saved cadets) along with all sessions. Braylee's student ID would have to be reset by hand (a plain `bcrypt` hash of it in `User.pin` is accepted and re-peppered on sign-in); saved cadets would have to save again. Do not rotate it casually.
+**Rotating `NEXTAUTH_SECRET` invalidates every peppered student ID** (Braylee and all saved cadets) along with all sessions. Braylee's student ID would have to be reset by hand (`npm run db:set-student-id` stores a plain bcrypt hash that is accepted and re-peppered on sign-in); saved cadets would have to save again. Do not rotate it casually.
 
 The password-manager opt-out for these fields (text input with a CSS mask, `autocomplete="off"`, `data-1p-ignore` etc.) is deliberate: do not turn them into `type="password"` fields.
 
 ### Student ID rule (5-8 digits)
 
-Sign-in and "Save my cadet" both take a student ID of 5 to 8 digits (`STUDENT_ID_MIN` / `STUDENT_ID_MAX` in `lib/cadetNames.js`). 4-digit values are no longer accepted, so Braylee's old 4-digit PIN stops working the moment this deploys. Set her account to her student ID right after deploying: hash it with `hashPin` from `lib/pinAuth.js` (or store the plain value; it is hashed on her next sign-in in production) into her `User.pin` and reset `failedLoginAttempts` / `lockedUntil`. Never put the real ID in the repo, a ticket or a commit.
+Sign-in and "Save my cadet" both take a student ID of 5 to 8 digits (`STUDENT_ID_MIN` / `STUDENT_ID_MAX` in `lib/cadetNames.js`). 4-digit values are no longer accepted, so Braylee's old 4-digit PIN stops working the moment this deploys. Set her account to her student ID right after deploying, with the script (never store a plain value):
+
+```
+npm run db:set-student-id -- --name Braylee --i-have-a-backup
+```
+
+It reads the ID from a hidden prompt (or from stdin when piped; never from argv), stores a plain bcrypt hash of it in `User.pin`, clears `failedLoginAttempts` / `lockedUntil` in the same update, and prints only the number of rows updated (expect 1). It refuses a non-localhost `DATABASE_URL` without `--i-have-a-backup`. The first production sign-in transparently upgrades that hash to the peppered one. Never put the real ID in the repo, a ticket, a commit or shell history. If you must do it by hand, hash it with `bcryptjs` (a fake example: `bcrypt.hash('12345678', 10)`) and update the same three columns; do not store the plain value.

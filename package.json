@@ -20,6 +20,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:import-spelling": "node scripts/import-spelling.js",
+    "db:set-student-id": "node scripts/set-student-id.js",
     "db:cleanup-accounts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/cleanup-accounts.js"
   },
   "dependencies": {

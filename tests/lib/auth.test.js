@@ -27,7 +27,7 @@ describe('PIN provider authorize', () => {
     expect(verifyPin).toHaveBeenCalledWith('K', '12345', { ip: 'unknown' });
   });
   it('null for ordinary failures', async () => {
-    verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'Invalid name or PIN' });
+    verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'Invalid name or student ID' });
     expect(await pinAuthorize({ name: 'K', pin: '00000' })).toBeNull();
   });
   it('surfaces the friendly cooldown message by throwing on 429', async () => {
