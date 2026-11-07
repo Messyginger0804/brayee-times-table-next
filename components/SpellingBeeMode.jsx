@@ -8,7 +8,7 @@ import Screen from './ui/Screen';
 import GameHud from './game/GameHud';
 import { useFeedback, GifSlot } from './gif/GifProvider';
 import { useSceneKind } from '../lib/sceneFx';
-import { CenterScreen } from './modes/shared/GateViews';
+import { CenterScreen, UnreachablePanel } from './modes/shared/GateViews';
 import { StartPanel, RoundPanel } from './modes/shared/SpellingViews';
 import { useAuthUser, useLoginRedirect } from './modes/shared/useAuthUser';
 import { useSpellingWords } from './modes/shared/useSpellingWords';
@@ -19,7 +19,7 @@ function SpellingBeeMode() {
   const router = useRouter();
   const feedback = useFeedback();
   useSceneKind('bee');
-  const [user] = useAuthUser(authStatus);
+  const [user, , auth] = useAuthUser(authStatus);
   useLoginRedirect(authStatus);
   const loading = authStatus === 'loading';
 
@@ -32,6 +32,7 @@ function SpellingBeeMode() {
   const { wordsReady, myGrade, pick, setPick, wordsRef } = useSpellingWords();
   const round = useSpellingRound({ wordsRef, feedback });
 
+  if (!loading && !user && auth.unreachable) return <UnreachablePanel onRetry={auth.retry} />;
   if (loading || !user) {
     return <CenterScreen><p role="status" className="text-title text-neon-amber">Loading… 🐝</p></CenterScreen>;
   }

@@ -7,12 +7,14 @@ const WRONG_PAUSE_MS = 2200;
 
 // Builds the onResult callback for Testing mode (scoring, feedback, pass/fail transitions).
 export function useTestResult(ctx) {
-  const { feedback, index, count, level, onLevelUp, timer, passedLevelRef, streak, setStreak, setScore, setAnswer, setStatus, setIndex, setPassed, setGameOver, setPassOpen } = ctx;
+  const { feedback, index, count, level, onLevelUp, timer, passedLevelRef, streak, setStreak, setScore, setAnswer, setStatus, setIndex, setPassed, setGameOver, setPassOpen, setLevelSaved } = ctx;
 
   const finishPass = async () => {
     // Level 1 pass: save the new level, but stay here so the celebration can show
     passedLevelRef.current = level;
-    if (level === 1) { try { await onLevelUp({ stay: true }); } catch (_) {} }
+    let saved = true;
+    if (level === 1) { try { saved = (await onLevelUp({ stay: true })) !== false; } catch (_) { saved = false; } }
+    setLevelSaved?.(saved);
     setPassed(true); setGameOver(true); setStatus(null); setAnswer('');
     setPassOpen(true);
   };

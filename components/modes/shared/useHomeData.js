@@ -7,6 +7,7 @@ const AUTH = { withCredentials: true };
 
 /** Server state for the home screen: problems, attempt history, progress and the grade's missions. */
 export function useHomeData(user, scopedSkill) {
+  const userId = user?.id ?? (user ? 'user' : null); // primitive: a new user object with the same id must not refetch
   const [problems, setProblems] = useState([]);
   const [filteredProblems, setFilteredProblems] = useState([]);
   const [problemsLoading, setProblemsLoading] = useState(true);
@@ -23,27 +24,28 @@ export function useHomeData(user, scopedSkill) {
   }, []);
 
   const fetchAllAttemptSummaries = useCallback(() => {
-    if (!user) return;
+    if (!userId) return;
     axios.get('/api/attempts/last5', AUTH)
       .then((res) => setAttemptSummaries(res.data?.summaries || {}))
       .catch(() => setAttemptSummaries({}));
-  }, [user]);
+  }, [userId]);
 
   const fetchProgressSummary = useCallback(() => {
-    if (!user) return;
+    if (!userId) return;
     axios.get('/api/progress/summary', AUTH)
       .then((res) => setUserProgress(idsToMap(res.data?.problemIds)))
       .catch(() => setUserProgress({}));
-  }, [user]);
+  }, [userId]);
 
   const fetchMissions = useCallback(() => {
     axios.get('/api/curriculum/me', AUTH)
       .then((r) => setCurr(normalizeCurriculum(r.data)))
-      .catch(() => setCurr({ grade: null, skills: [] }));
+      // A failed request is not "no grade set": keep what we had and flag the error so the page can offer a retry.
+      .catch(() => setCurr((prev) => (prev ? { ...prev, error: true } : { grade: null, skills: [], error: true })));
   }, []);
 
   useEffect(() => {
-    if (user) {
+    if (userId) {
       fetchProblems();
       fetchAllAttemptSummaries();
       fetchProgressSummary();
@@ -52,9 +54,9 @@ export function useHomeData(user, scopedSkill) {
       setAttemptSummaries({});
       setUserProgress({});
     }
-  }, [user, fetchProblems, fetchAllAttemptSummaries, fetchProgressSummary]);
+  }, [userId, fetchProblems, fetchAllAttemptSummaries, fetchProgressSummary]);
 
-  useEffect(() => { if (user) fetchMissions(); else setCurr(null); }, [user, fetchMissions]);
+  useEffect(() => { if (userId) fetchMissions(); else setCurr(null); }, [userId, fetchMissions]);
 
   useEffect(() => {
     if (!user) return;

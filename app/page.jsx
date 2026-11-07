@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import MemorizeMode from '../components/MemorizeMode';
 import PracticeMode from '../components/PracticeMode';
 import TestingMode from '../components/TestingMode';
-import { CenterScreen } from '../components/modes/shared/GateViews';
+import { CenterScreen, UnreachablePanel } from '../components/modes/shared/GateViews';
 import { GradeGate, MenuScreen } from '../components/modes/shared/HomeMenu';
 import { useAuthUser, useLoginRedirect } from '../components/modes/shared/useAuthUser';
 import { useLevelUp } from '../components/modes/shared/useLevelUp';
@@ -26,7 +26,8 @@ function refreshHome(user, data) {
 }
 
 /** Back to the menu: clear the mode and scoped mission, then refresh what the menu shows. */
-const makeResetGame = ({ user, data, setMode, setScopedSkill }) => () => {
+const makeResetGame = ({ user, data, setMode, setScopedSkill, applyPendingLevel }) => () => {
+  applyPendingLevel?.(); // a level-up held back while the celebration showed
   setMode(null);
   setScopedSkill(null);
   refreshHome(user, data);
@@ -68,13 +69,14 @@ function pickContent(mode, ctx, ui, actions) {
   if (ui.cadetWelcome) return null; // one overlay at a time: the cadet popup goes first, grade picker / menu only after it
   const modeView = MODE_VIEWS[mode];
   if (modeView) return modeView(ctx);
+  if (data.curr?.error && !data.curr.grade) return <UnreachablePanel key="unreachable" onRetry={() => actions.fetchMissions()} />;
   if (data.curr && !data.curr.grade) return <GradeGate key="grade" onPicked={() => actions.fetchMissions()} />;
   return <MenuScreen key="menu" user={user} curr={data.curr} stats={testingStats(ctx.filteredProblems, data.userProgress)} ui={ui} actions={actions} />;
 }
 
 function AppInner() {
   const { status } = useSession();
-  const [user, setUser] = useAuthUser(status);
+  const [user, setUser, { unreachable, retry }] = useAuthUser(status);
   useLoginRedirect(status);
   const loading = status === 'loading';
   const [cadetWelcome, closeCadetWelcome] = useCadetWelcome();
@@ -87,13 +89,14 @@ function AppInner() {
   const data = useHomeData(user, scopedSkill);
   const { filteredProblems, problemsLoading, fetchProblems, fetchMissions } = data;
 
-  const handleLevelUp = useLevelUp({ user, setUser, setMode, fetchProblems });
+  const [handleLevelUp, applyPendingLevel] = useLevelUp({ user, setUser, setMode, fetchProblems });
 
   const pickMission = makePickMission(router, setPickedSkill);
   const startScoped = (m) => { setScopedSkill(pickedSkill.id); setPickedSkill(null); setMode(m); };
 
-  const resetGame = makeResetGame({ user, data, setMode, setScopedSkill });
+  const resetGame = makeResetGame({ user, data, setMode, setScopedSkill, applyPendingLevel });
 
+  if (!loading && !user && unreachable) return <UnreachablePanel onRetry={retry} />;
   if (loading || !user || problemsLoading) return <LoadingView loading={loading || !user} />;
 
   const ctx = { user, scopedSkill, filteredProblems, resetGame, handleLevelUp, data };

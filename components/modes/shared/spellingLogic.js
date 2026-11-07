@@ -31,7 +31,9 @@ export function hiddenSentence(sentence, word) {
   return sentence.replace(new RegExp(`\\b${word}\\b`, 'gi'), '_____');
 }
 
-export const isCorrectSpelling = (answer, word) => answer.trim().toLowerCase() === word.toLowerCase();
+// iOS Smart Punctuation turns a typed ' into a curly one; compare with straight quotes on both sides.
+const normSpelling = (s) => String(s).replace(/[\u2018\u2019\u02bc\u201c\u201d]/g, (c) => (c === '\u201c' || c === '\u201d' ? '"' : "'")).trim().toLowerCase();
+export const isCorrectSpelling = (answer, word) => normSpelling(answer) === normSpelling(word);
 
 export const spellingPauseMs = (isCorrect) => (isCorrect ? 1400 : 2600);
 
