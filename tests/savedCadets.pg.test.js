@@ -63,9 +63,9 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('saved cadets (loca
   it('mission unlocks survive save and a later sign-in, and are deleted by the purge', async () => {
     const { u, actor } = await guest(5);
     await db.skillUnlock.createMany({ data: [{ userId: u.id, skillId: 'pgt-a' }, { userId: u.id, skillId: 'pgt-b' }] });
-    await saveCadet(db, actor, `pgt-Unl${tag}`, '55667');
+    await saveCadet(db, actor, `pgt-Unl${tag}`, '556677');
     expect(await db.skillUnlock.count({ where: { userId: u.id } })).toBe(2); // survived the save
-    expect((await verifyPin(`pgt-Unl${tag}`, '55667')).ok).toBe(true); // resume
+    expect((await verifyPin(`pgt-Unl${tag}`, '556677')).ok).toBe(true); // resume
     expect(await db.skillUnlock.count({ where: { userId: u.id } })).toBe(2);
     await db.user.update({ where: { id: u.id }, data: { lastActiveAt: new Date(Date.now() - 31 * DAY) } });
     await purgeInactiveSaved(db);

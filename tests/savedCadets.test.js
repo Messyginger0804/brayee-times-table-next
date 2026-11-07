@@ -112,7 +112,7 @@ describe('saveCadet', () => {
   it('keeps the seat\'s mission unlocks with the cadet, and the refilled guest seat starts with none', async () => {
     const seat = seedGuest(db, 2);
     db.rows.skillUnlock.push({ userId: seat.id, skillId: 'x' }, { userId: seat.id, skillId: 'y' });
-    await saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '24680', NOW);
+    await saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '246801', NOW);
     expect(db.rows.skillUnlock).toEqual([{ userId: seat.id, skillId: 'x' }, { userId: seat.id, skillId: 'y' }]);
     const fresh = db.users.filter((u) => u.isGuest && u.guestSeat === 2);
     expect(fresh).toHaveLength(1);
