@@ -15,8 +15,8 @@ export async function GET(req) {
   const notFound = () => new NextResponse(null, { status: 404, headers: { 'Cache-Control': 'private, no-store' } });
 
   try {
-    const user = await prisma.user.findUnique({ where: { id }, select: { name: true } });
-    if (!user) return notFound();
+    const user = await prisma.user.findUnique({ where: { id }, select: { name: true, savedCadet: true } });
+    if (!user || user.savedCadet) return notFound(); // saved cadets pick their own nickname: never look it up in the photo map
     const map = await readAvatarMap();
     if (!hasKey(map, user.name)) return notFound();
     return (await avatarResponse(map[user.name], size, 'private')) || notFound();

@@ -20,6 +20,14 @@ describe('isSchemaMissing', () => {
     expect(isSchemaMissing({ code: 'P2021', meta: { table: '(not available)' }, message: 'The table does not exist' })).toBe(true);
   });
 
+  it('matches the saved-cadet columns (deployed before the migration)', () => {
+    expect(NEW_QUALIFIED_COLUMNS).toEqual(expect.arrayContaining(['User.savedCadet', 'User.savedAt']));
+    expect(isSchemaMissing({ code: 'P2022', meta: { column: 'User.savedCadet' } })).toBe(true);
+    expect(isSchemaMissing({ code: 'P2022', message: 'The column `User.savedAt` does not exist in the current database.' })).toBe(true);
+    expect(isSchemaMissing({ code: 'P2010', meta: { code: '42703', message: 'column "savedCadet" does not exist' } })).toBe(true);
+    expect(isSchemaMissing({ code: 'P2022', meta: { column: 'User.savedBy' } })).toBe(false);
+  });
+
   it('matches P2010 only for a Postgres "does not exist" error naming one of them', () => {
     expect(isSchemaMissing({ code: 'P2010', meta: { code: '42703', message: 'column "isGuest" does not exist' } })).toBe(true);
     expect(isSchemaMissing({ code: 'P2010', message: 'Raw query failed. Code: `42P01`. Message: `relation "MathAttempt" does not exist`' })).toBe(true);

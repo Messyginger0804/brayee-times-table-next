@@ -99,3 +99,10 @@ input, select, textarea {
 .btn-chunk { transition: box-shadow 120ms ease, filter 120ms ease; }
 .btn-chunk:active:not(:disabled) { box-shadow: 0 1px 0 rgba(0,0,0,0.35); }
 .btn-chunk:disabled { filter: saturate(0.5) brightness(0.8); cursor: not-allowed; }
+
+/* Masked digits without type="password" (see components/ui/SecretInput.jsx). Where the property is unsupported the digits stay visible,
+   which only matters to someone looking over the shoulder; the field is still never offered to a password manager. */
+.secret-mask {
+  -webkit-text-security: disc;
+  text-security: disc;
+}

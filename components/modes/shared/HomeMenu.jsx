@@ -12,6 +12,7 @@ import { pickLine } from '../../../config/brayleeLines';
 import Screen, { GlassCard } from '../../ui/Screen';
 import Button from '../../ui/Button';
 import Modal from '../../ui/Modal';
+import SaveCadet from '../../SaveCadet';
 import { testingCopy } from './homeLogic';
 import { sceneFx, useScenePopup } from '../../../lib/sceneFx';
 
@@ -46,9 +47,9 @@ function OwnWelcome({ name }) {
   return <SpeechBubble text={line} tail="none" className="mb-2 w-full max-w-[19rem]" />;
 }
 
-/** Guests get the one host astronaut; her rotating lines ("Pick a mission, Cadet!") live in her bubble. */
+/** Guests and saved cadets get the one host astronaut; her rotating lines ("Pick a mission, Cadet!") live in her bubble. */
 function Welcome({ user }) {
-  if (user.isGuest) {
+  if (user.isGuest || user.isSaved) {
     return <HostAstronaut size={92} layout="row" storageKey="host-welcomed" lines={[HOST_WELCOME, ...HOST_LINES]} className="mb-2 w-full max-w-sm" />;
   }
   return <OwnWelcome name={user.name} />;
@@ -140,7 +141,7 @@ export function MenuScreen({ user, curr, stats, ui, actions }) {
   const grade = curr?.grade;
   return (
     <Screen>
-      <Header onReset={actions.reset} userName={user.name} menuLabel="Home" photo={!user.isGuest} />
+      <Header onReset={actions.reset} userName={user.name} menuLabel="Home" photo={!user.isGuest && !user.isSaved} />
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2">
         <div className="flex flex-col items-center text-center">
           <Welcome user={user} />
@@ -155,6 +156,7 @@ export function MenuScreen({ user, curr, stats, ui, actions }) {
             <span aria-hidden="true">🎓</span> {ordinal(grade)} grade · Change
           </Button>
         ) : null}
+        {user.isGuest ? <SaveCadet /> : null}
       </div>
       <MenuModals
         curr={curr}

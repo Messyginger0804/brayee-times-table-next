@@ -3,25 +3,26 @@ import { useEffect, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import { isValidStudentId, STUDENT_ID_MIN, STUDENT_ID_MAX } from '../../../lib/cadetNames';
 import { confirmSession } from '../../../lib/confirmSession';
 import { queueCadetWelcome } from '../../../lib/cadetWelcome';
-
-const BRAYLEE_NAME = 'Braylee';
 
 const SESSION_FAIL = 'Almost there, but the launch hiccuped. Please tap again!';
 const GUEST_FAIL = 'Could not start a guest game. Try again!';
 
-function validatePin(pin) {
-  if (!/^\d{4}$/.test(String(pin))) return 'Your PIN needs exactly 4 numbers.';
+function validateLogin(name, pin) {
+  if (!String(name).trim()) return 'Type your name first.';
+  if (!isValidStudentId(String(pin))) return `Your student ID needs ${STUDENT_ID_MIN} to ${STUDENT_ID_MAX} numbers.`;
   return '';
 }
 
 function loginFailMessage(res) {
-  return res?.error && res.error !== 'CredentialsSignin' ? res.error : 'Hmm, that PIN did not work. Try again!';
+  return res?.error && res.error !== 'CredentialsSignin' ? res.error : "That didn't work. Check your name and student ID, or try again in a little while.";
 }
 
 export default function useLogin() {
   const router = useRouter();
+  const [name, setName] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -69,12 +70,13 @@ export default function useLogin() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    const invalid = validatePin(pin);
+    const invalid = validateLogin(name, pin);
     if (invalid) { setError(invalid); return; }
     setLoading(true);
     try {
-      const res = await signIn('credentials', { name: BRAYLEE_NAME, pin, redirect: false });
+      const res = await signIn('credentials', { name, pin, redirect: false });
       if (res?.ok) {
+        setPin('');
         await fetch('/api/auth/link-cookie', { method: 'POST' }).catch(() => {});
         if (await finish('Welcome back! 🎉 Launching…')) return;
         setLoading(false);
@@ -88,7 +90,7 @@ export default function useLogin() {
   };
 
   const openLogin = () => { setShowLogin(true); setError(''); };
-  const closeLogin = () => { setShowLogin(false); setPin(''); setError(''); };
+  const closeLogin = () => { setShowLogin(false); setName(''); setPin(''); setError(''); };
 
-  return { pin, setPin, loading, showLogin, resume, error, done, enterGuest, handleLogin, openLogin, closeLogin };
+  return { name, setName, pin, setPin, loading, showLogin, resume, error, done, enterGuest, handleLogin, openLogin, closeLogin };
 }

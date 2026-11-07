@@ -1,6 +1,6 @@
 # Braylee's Space Academy
 
-A math and spelling practice game for one child, Braylee, built by her father. She signs in with a 4-digit PIN; anyone else plays as an anonymous guest seat (no sign-ups, no personal data). Math missions cover grades 1-6 plus the 12x12 times tables; the Spelling Bee reads words aloud. The code and metadata may still say "Braylee's Space Academy" on branches that predate the rename.
+A math and spelling practice game for one child, Braylee, built by her father. She signs in with a student ID (5-8 digits); anyone else plays as an anonymous guest seat (no sign-ups, no personal data) and can optionally keep their progress as a saved cadet (a nickname plus a student ID). Math missions cover grades 1-6 plus the 12x12 times tables; the Spelling Bee reads words aloud. The code and metadata may still say "Braylee's Space Academy" on branches that predate the rename.
 
 ## Features
 
@@ -8,7 +8,7 @@ A math and spelling practice game for one child, Braylee, built by her father. S
 - Math missions: 79 skills across grades 1-6, 254 levels, generated problems with a purpose-built keypad (fractions, decimals, remainders, comparisons, yes/no). A mission map shows the next skill.
 - Spelling Bee with words stored in the database, grouped by grade and unit.
 - Progress tracking: per-fact mastery, per-skill level and mastery windows, last-5 summaries, best test score.
-- Two kinds of player: Braylee (PIN login with escalating lockout) and guest seats (cookie-based, wiped after 7 idle days).
+- Three kinds of player: Braylee (student ID sign-in with escalating lockout), guest seats (cookie-based, wiped after 7 idle days), and saved cadets (a guest who taps "Save my cadet" to keep their progress under a nickname + student ID; deleted after 30 idle days by default). The "Are you a saved cadet? Sign in" link on the login screen takes name + student ID.
 - Spoken cheers and instructions using the browser's built-in speech engine, with optional pre-generated clips for Braylee's lines. No paid APIs.
 - Animated feedback (GIF cards, fireworks, 3D space backdrop), installable as a PWA.
 
@@ -17,7 +17,7 @@ A math and spelling practice game for one child, Braylee, built by her father. S
 | Area | Choice |
 |---|---|
 | Framework | Next.js 14 (App Router), React 18, plain JS/JSX (one TypeScript file: `config/gifs.ts`) |
-| Auth | next-auth 4 with JWT sessions, `bcryptjs` PIN hashes |
+| Auth | next-auth 4 with JWT sessions, `bcryptjs` student-ID hashes (HMAC-peppered) |
 | Database | PostgreSQL 16 via Prisma 5 |
 | UI | Tailwind CSS 3, framer-motion, three.js with react-three-fiber |
 | Tests | Vitest (jsdom for components) |
@@ -29,7 +29,7 @@ A math and spelling practice game for one child, Braylee, built by her father. S
 Prerequisites: Node 20 or newer to run the app (the Dockerfile uses 20, CI uses 24); `npm test` needs Node 22.22.2 or newer because jsdom 31 requires it, npm, Docker with the compose plugin. Details are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 1. Install dependencies: `npm install`
-2. Create `.env.docker` (gitignored) from [env.example](env.example). At minimum `DATABASE_URL` (host `db`, port 5432, user `braylee`, database `braylee`, password as in `docker-compose.yml`) and `NEXTAUTH_SECRET`. Optionally `SEED_BRAYLEE_PIN` (4 digits).
+2. Create `.env.docker` (gitignored) from [env.example](env.example). At minimum `DATABASE_URL` (host `db`, port 5432, user `braylee`, database `braylee`, password as in `docker-compose.yml`) and `NEXTAUTH_SECRET`. Optionally `SEED_BRAYLEE_PIN` (a 5-8 digit student ID for Braylee).
 3. Start Postgres and the production-build app: `docker compose up -d --build`. The app container applies migrations and seeds on start.
 4. Optional, for hot reload: `npm run dev:local`.
 
@@ -41,7 +41,7 @@ Prerequisites: Node 20 or newer to run the app (the Dockerfile uses 20, CI uses 
 
 Stop the stack with `docker compose down`. Add `-v` only to wipe the database volume.
 
-If you did not set `SEED_BRAYLEE_PIN`, the seed prints a random PIN once, in the app container log, when it first creates the Braylee user (`docker compose logs app`). Guests need no PIN: use "Play as Guest".
+If you did not set `SEED_BRAYLEE_PIN`, the seed prints a random student ID once, in the app container log, when it first creates the Braylee user (`docker compose logs app`). Guests need no student ID: use "Play as Guest".
 
 ## npm scripts
 
@@ -60,7 +60,8 @@ If you did not set `SEED_BRAYLEE_PIN`, the seed prints a random PIN once, in the
 | `npm run db:migrate` | `prisma migrate deploy` (apply checked-in migrations) |
 | `npm run db:seed` | `prisma db seed` |
 | `npm run db:import-spelling` | Idempotent import of `docs/curriculum/spelling.json` into `SpellingWord`; supports `--dry-run` |
-| `npm run db:cleanup-accounts` | One-time account merge/cleanup; dry run unless `--confirm` is passed |
+| `npm run db:cleanup-accounts` | One-time account merge/cleanup; dry run unless `--confirm` is passed. Refuses to run while saved cadets exist unless `--include-saved-cadets` is passed |
+| `npm run db:set-student-id` | Set or reset a named account's student ID (`-- --name Braylee`); reads the ID from a hidden prompt or stdin, never argv. Needs `--i-have-a-backup` for a non-localhost database |
 
 Type check (not an npm script): `npx tsc --noEmit`.
 
@@ -71,11 +72,11 @@ Type check (not an npm script): `npx tsc --noEmit`.
 | `app/` | App Router pages (`/`, `/login`, `/spelling-bee`, `/skill/[id]`, dev-only `/gifs`), `layout.jsx`, manifest and share images |
 | `app/api/` | Route handlers; shared auth helpers in `app/api/_utils.js` |
 | `components/` | UI. `modes/` holds mode logic and hooks, `game/` the question card and keypads, `ui/` base widgets, `braylee/`, `gif/`, `space/` visuals |
-| `lib/` | Server and shared logic: auth, guest seats, PIN lockout, rate limit, mastery, voice, Prisma client |
+| `lib/` | Server and shared logic: auth, guest seats, saved cadets, student-ID hashing and lockout, rate limit, mastery, voice, Prisma client |
 | `lib/curriculum/math/` | Pure-JS problem generators, answer checking and mastery rules; see [lib/curriculum/README.md](lib/curriculum/README.md) |
 | `config/` | GIF catalog, cheer lines, voice clip list |
 | `prisma/` | `schema.prisma`, `migrations/`, seed scripts |
-| `scripts/` | Dev server launcher, spelling import, account cleanup, icon and image builders |
+| `scripts/` | Dev server launcher, spelling import, account cleanup, set-student-id, icon and image builders |
 | `tests/` | Vitest suites; API route tests use `tests/api/helpers.js` |
 | `docs/` | Project documentation and curriculum research |
 | `public/` | Static assets (Braylee cutouts, icons, GIFs, audio clips) |
@@ -102,4 +103,4 @@ Type check (not an npm script): `npx tsc --noEmit`.
 
 ## Privacy
 
-The repository is public. Real PINs, env values, database dumps and avatar photos must never be committed (`.env*`, `private/`, `.backups/` and `*.dump` are gitignored).
+The repository is public. Real student IDs and PINs, env values, database dumps and avatar photos must never be committed (`.env*`, `private/`, `.backups/` and `*.dump` are gitignored).

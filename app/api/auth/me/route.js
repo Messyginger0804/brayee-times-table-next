@@ -22,5 +22,5 @@ export async function GET() {
     if (token && user.guestTokenHash && hashToken(token) === user.guestTokenHash) res.cookies.set(GUEST_COOKIE, token, guestCookieOptions);
     return res;
   }
-  return NextResponse.json({ id: user.id, name: user.name, level: user.level, image: currentUserImage(user.image), isGuest: false, grade: user.grade });
+  return NextResponse.json({ id: user.id, name: user.name, level: user.level, image: currentUserImage(user.image), isGuest: false, isSaved: !!user.savedCadet, grade: user.grade });
 }
