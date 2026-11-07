@@ -188,6 +188,7 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 
 ## Other notes
 
+- **Student IDs must be exactly 6 digits (0-9 only).** Any saved cadet or account whose student ID is not exactly 6 digits (for example an older 5, 7 or 8 digit ID) can no longer sign in. IDs are stored only as hashes, so these accounts cannot be found with a query. Fix: have the cadet re-save, or run `npm run db:set-student-id` with a 6-digit ID (see [OPERATIONS.md](OPERATIONS.md#set-or-reset-a-student-id-npm-run-dbset-student-id)).
 - `vercel.json` still lists `ui-overhaul` under `git.deploymentEnabled`. Harmless; delete it when next touching that file.
 - `isAdmin` (on `User`) and `MathSkillProgress.unlockedByParent` are unused leftovers from the removed parent screen. They are kept so no migration is needed.
 - A saved cadet has no self-service way to recover a forgotten student ID or to be renamed; only the owner can reset it with `npm run db:set-student-id`. Choosing a nickname that is already taken is reported to the kid ("Someone already has that name"), which also reveals that a saved cadet with that name exists.

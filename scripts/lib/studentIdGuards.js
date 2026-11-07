@@ -1,6 +1,6 @@
 // Pure guards for scripts/set-student-id.js (no DB, no I/O) so they can be unit tested.
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1'];
-const STUDENT_ID_RE = /^\d{5,8}$/; // same rule as lib/cadetNames.js
+const STUDENT_ID_RE = /^\d{6}$/; // same rule as lib/cadetNames.js
 
 function hostOf(url) {
   try { return new URL(url).hostname.replace(/^\[|\]$/g, ''); } catch (_) { return null; }

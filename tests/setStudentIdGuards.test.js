@@ -33,15 +33,15 @@ describe('isLocalDbUrl', () => {
 });
 
 describe('isValidStudentId', () => {
-  it('accepts 5 to 8 digits', () => {
-    expect(isValidStudentId('12345')).toBe(true);
-    expect(isValidStudentId('12345678')).toBe(true);
+  it('accepts exactly 6 digits, leading zero included', () => {
+    expect(isValidStudentId('123456')).toBe(true);
+    expect(isValidStudentId('012345')).toBe(true);
   });
-  it.each(['1234', '123456789', '', '12 345', '12345a', 'abcde', '１２３４５', '12345\n'])('rejects %j', (v) => {
+  it.each(['1234', '12345', '1234567', '12345678', '', '12 3456', '123-456', '12345a', 'abcdef', '１２３４５６', '١٢٣٤٥٦', '123456\n', ' 123456'])('rejects %j', (v) => {
     expect(isValidStudentId(v)).toBe(false);
   });
   it('rejects non-strings', () => {
-    expect(isValidStudentId(12345)).toBe(false);
+    expect(isValidStudentId(123456)).toBe(false);
     expect(isValidStudentId(null)).toBe(false);
   });
 });

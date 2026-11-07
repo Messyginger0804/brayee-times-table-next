@@ -9,12 +9,12 @@ const prisma = new PrismaClient();
 // so re-running the seed cannot overwrite a changed PIN or a prod hash.
 const hash = (pin) => bcrypt.hash(pin, 10);
 
-// The PIN comes from SEED_BRAYLEE_PIN (5-8 digits, the student ID rule in lib/cadetNames.js). If unset, a random one is generated and printed once,
+// The PIN comes from SEED_BRAYLEE_PIN (exactly 6 digits, the student ID rule in lib/cadetNames.js). If unset, a random one is generated and printed once,
 // only when the user row is actually created. No PIN is ever stored in source.
 function resolvePin() {
   const fromEnv = process.env.SEED_BRAYLEE_PIN;
-  if (fromEnv === undefined || fromEnv === '') return { pin: String(randomInt(0, 100000)).padStart(5, '0'), generated: true };
-  if (!/^\d{5,8}$/.test(fromEnv)) throw new Error('SEED_BRAYLEE_PIN must be 5 to 8 digits');
+  if (fromEnv === undefined || fromEnv === '') return { pin: String(randomInt(0, 1000000)).padStart(6, '0'), generated: true };
+  if (!/^\d{6}$/.test(fromEnv)) throw new Error('SEED_BRAYLEE_PIN must be exactly 6 digits (0-9 only)');
   return { pin: fromEnv, generated: false };
 }
 

@@ -24,7 +24,7 @@ function readFromStdin() {
     let data = '';
     process.stdin.setEncoding('utf8');
     process.stdin.on('data', (c) => { data += c; });
-    process.stdin.on('end', () => resolve(data.split(/\r?\n/)[0].trim()));
+    process.stdin.on('end', () => resolve(data.split(/\r?\n/)[0]));
     process.stdin.on('error', reject);
   });
 }
@@ -43,7 +43,7 @@ function readHidden(prompt) {
           process.stdin.pause();
           process.stdin.off('data', onData);
           process.stderr.write('\n');
-          return resolve(value.trim());
+          return resolve(value);
         }
         if (c === '\u0003') { process.stderr.write('\n'); process.exit(130); }
         if (c === '\u007f') value = value.slice(0, -1); else value += c;
@@ -61,7 +61,7 @@ async function main() {
     process.exit(2);
   }
   const id = process.stdin.isTTY ? await readHidden('Student ID (hidden): ') : await readFromStdin();
-  if (!isValidStudentId(id)) { console.error('The student ID must be 5 to 8 digits.'); process.exit(2); }
+  if (!isValidStudentId(id)) { console.error('The student ID must be exactly 6 digits (0-9 only).'); process.exit(2); }
 
   const prisma = new PrismaClient();
   try {

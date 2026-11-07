@@ -52,7 +52,7 @@ Set in the host (Vercel project settings, or `.env.docker` locally). `env.exampl
 | `GUEST_MIN_IDLE_MINUTES` | no | `lib/guests.js` | Minutes a taken seat must be idle before a new device may take it over. Default 15. |
 | `SAVED_CADETS_MAX` | no | `lib/savedCadetPurge.js`, `lib/savedCadets.js` | Maximum number of saved cadets (Braylee not counted). Default 10, clamped 0-500. |
 | `SAVED_CADET_RETENTION_DAYS` | no | `lib/savedCadetPurge.js` | Days without activity before a saved cadet is deleted with all their data. Default 30, clamped 1-3650. |
-| `SEED_BRAYLEE_PIN` | no | `prisma/seed-users.js` | Student ID of 5 to 8 digits. Used only when the seed creates the `Braylee` row. If unset, a random one is generated and printed once. See [Seeding](#seeding-and-the-first-pin). |
+| `SEED_BRAYLEE_PIN` | no | `prisma/seed-users.js` | Student ID of exactly 6 digits. Used only when the seed creates the `Braylee` row. If unset, a random one is generated and printed once. See [Seeding](#seeding-and-the-first-pin). |
 | `VERCEL_PROJECT_PRODUCTION_URL` | provided by Vercel | `app/layout.jsx` | Used for the site metadata base URL. Do not set by hand. |
 | `VERCEL_ENV` | set by Vercel | `lib/pinAuth.js` | Old-format student-ID hashes are upgraded to the peppered format on sign-in only when this is `production`. |
 | `PIN_REHASH` | no, local testing only | `lib/pinAuth.js` | `1` lets a non-production process do that upgrade. Never set it against the production database. |
@@ -64,7 +64,7 @@ CI sets dummy values for `DATABASE_URL`, `NEXTAUTH_SECRET` and `NEXTAUTH_URL` in
 
 `prisma/seed-users.js` creates one real account, `Braylee`, with `upsert` and `update: {}`. Re-running the seed never changes an existing row, so it cannot overwrite a changed student ID. Guest seat rows are created lazily by the app on the first guest request, not by the seed.
 
-- The student ID comes from `SEED_BRAYLEE_PIN` (must be 5 to 8 digits, otherwise the seed throws; sign-in rejects anything else).
+- The student ID comes from `SEED_BRAYLEE_PIN` (must be exactly 6 digits, otherwise the seed throws; sign-in rejects anything else).
 - If `SEED_BRAYLEE_PIN` is unset and the row is being created, a random ID is generated and printed once to the console. Save it then; it is stored only as a bcrypt hash.
 - If the row already exists, nothing is printed and nothing changes.
 - The docker entrypoint runs `prisma migrate deploy` then `prisma db seed` on every container start, so the seed must stay idempotent.
@@ -136,17 +136,17 @@ All SQL below is run with `psql "$DATABASE_URL"` against the intended database. 
 
 ### Set or reset a student ID (`npm run db:set-student-id`)
 
-Student IDs are 5 to 8 digits and stored only as bcrypt hashes in `User.pin`. Use the script; never put the ID in a command line argument, file, ticket or chat.
+Student IDs are exactly 6 digits and stored only as bcrypt hashes in `User.pin`. Use the script; never put the ID in a command line argument, file, ticket or chat.
 
 ```
 npm run db:set-student-id -- --name Braylee
 ```
 
-- It reads the ID from a hidden prompt (or from stdin when piped; never from argv), checks it is 5-8 digits, stores a plain bcrypt hash of it in `User.pin` and clears `failedLoginAttempts` / `lockedUntil` in the same update. The only output is `updated N row(s)`; expect 1 (exit code 1 otherwise).
+- It reads the ID from a hidden prompt (or from stdin when piped; never from argv), checks it is exactly 6 digits, stores a plain bcrypt hash of it in `User.pin` and clears `failedLoginAttempts` / `lockedUntil` in the same update. The only output is `updated N row(s)`; expect 1 (exit code 1 otherwise).
 - It only touches a non-guest row with exactly that name.
 - Against a non-localhost `DATABASE_URL` it refuses to run unless you add `--i-have-a-backup`. Never point it at the docker `db` or production unless that is the intent.
 - Production upgrades the plain hash to the peppered one on the first successful sign-in, so there is nothing more to do. A non-production process only verifies.
-- Use it after rotating `NEXTAUTH_SECRET`, after the 5-8 digit change (old 4-digit PINs stop working), or when Braylee forgets her ID. A saved cadet who forgets theirs has no reset path other than this script with their nickname.
+- Use it after rotating `NEXTAUTH_SECRET`, after the 6-digit change (old 4-digit PINs and any 5, 7 or 8 digit IDs stop working), or when Braylee forgets her ID. A saved cadet who forgets theirs has no reset path other than this script with their nickname.
 
 ### Unlock a locked-out account
 

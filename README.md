@@ -1,6 +1,6 @@
 # Braylee's Space Academy
 
-A math and spelling practice game for one child, Braylee, built by her father. She signs in with a student ID (5-8 digits); anyone else plays as an anonymous guest seat (no sign-ups, no personal data) and can optionally keep their progress as a saved cadet (a nickname plus a student ID). Math missions cover grades 1-6 plus the 12x12 times tables; the Spelling Bee reads words aloud. The code and metadata may still say "Braylee's Space Academy" on branches that predate the rename.
+A math and spelling practice game for one child, Braylee, built by her father. She signs in with a student ID (exactly 6 digits); anyone else plays as an anonymous guest seat (no sign-ups, no personal data) and can optionally keep their progress as a saved cadet (a nickname plus a student ID). Math missions cover grades 1-6 plus the 12x12 times tables; the Spelling Bee reads words aloud. The code and metadata may still say "Braylee's Space Academy" on branches that predate the rename.
 
 ## Features
 
@@ -29,7 +29,7 @@ A math and spelling practice game for one child, Braylee, built by her father. S
 Prerequisites: Node 20 or newer to run the app (the Dockerfile uses 20, CI uses 24); `npm test` needs Node 22.22.2 or newer because jsdom 31 requires it, npm, Docker with the compose plugin. Details are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 1. Install dependencies: `npm install`
-2. Create `.env.docker` (gitignored) from [env.example](env.example). At minimum `DATABASE_URL` (host `db`, port 5432, user `braylee`, database `braylee`, password as in `docker-compose.yml`) and `NEXTAUTH_SECRET`. Optionally `SEED_BRAYLEE_PIN` (a 5-8 digit student ID for Braylee).
+2. Create `.env.docker` (gitignored) from [env.example](env.example). At minimum `DATABASE_URL` (host `db`, port 5432, user `braylee`, database `braylee`, password as in `docker-compose.yml`) and `NEXTAUTH_SECRET`. Optionally `SEED_BRAYLEE_PIN` (a 6 digit student ID for Braylee).
 3. Start Postgres and the production-build app: `docker compose up -d --build`. The app container applies migrations and seeds on start.
 4. Optional, for hot reload: `npm run dev:local`.
 

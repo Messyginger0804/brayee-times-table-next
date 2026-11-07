@@ -32,15 +32,15 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('saved cadets (loca
     const { u, actor } = await guest(1);
     await db.test.create({ data: { userId: u.id, score: 7 } });
     const name = `pgt-Luna${tag}`;
-    await saveCadet(db, actor, name, '24680');
+    await saveCadet(db, actor, name, '246801');
     const row = await db.user.findUnique({ where: { id: u.id } });
     expect(row).toMatchObject({ name, isGuest: false, guestSeat: null, guestTokenHash: null, savedCadet: true, level: 4 });
     expect(row.pin).toMatch(/^\$2[aby]\$/);
-    expect(row.pin).not.toContain('24680');
+    expect(row.pin).not.toContain('246801');
     expect(await db.test.count({ where: { userId: u.id } })).toBe(1);
 
     const other = await guest(2);
-    await expect(saveCadet(db, other.actor, name.toUpperCase(), '13579')).rejects.toMatchObject({ code: 'taken' });
+    await expect(saveCadet(db, other.actor, name.toUpperCase(), '135790')).rejects.toMatchObject({ code: 'taken' });
     expect((await db.user.findUnique({ where: { id: other.u.id } })).isGuest).toBe(true);
   });
 
@@ -48,7 +48,7 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('saved cadets (loca
     const { u, actor } = await guest(3);
     await db.test.create({ data: { userId: u.id, score: 1 } });
     await db.attempt.create({ data: { userId: u.id, problemId: (await db.problem.findFirst()).id, isCorrect: true } });
-    await saveCadet(db, actor, `pgt-Old${tag}`, '11223');
+    await saveCadet(db, actor, `pgt-Old${tag}`, '112230');
     const braylee = await db.user.findUnique({ where: { name: 'Braylee' } });
     const before = braylee && (await db.user.count({ where: { name: 'Braylee' } }));
     await db.user.update({ where: { id: u.id }, data: { lastActiveAt: new Date(Date.now() - 31 * DAY) } }); // only this cadet is backdated
@@ -87,8 +87,8 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('saved cadets (loca
     try {
       const [a, b] = [await guest(10), await guest(11)];
       const r = await Promise.allSettled([
-        saveCadet(db, a.actor, `pgt-RaceA${tag}`, '11111'),
-        saveCadet(db, b.actor, `pgt-RaceB${tag}`, '22222'),
+        saveCadet(db, a.actor, `pgt-RaceA${tag}`, '111111'),
+        saveCadet(db, b.actor, `pgt-RaceB${tag}`, '222222'),
       ]);
       expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
       const lost = r.find((x) => x.status === 'rejected');
@@ -102,7 +102,7 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('saved cadets (loca
       const { u, actor } = await guest(20 + i);
       await db.test.create({ data: { userId: u.id, score: i } });
       const [save, wipe] = await Promise.allSettled([
-        saveCadet(db, actor, `pgt-W${i}${tag}`, '33333'),
+        saveCadet(db, actor, `pgt-W${i}${tag}`, '333333'),
         wipeSeat(db, u.id, {}, { guestTokenHash: actor.gk }),
       ]);
       const row = await db.user.findUnique({ where: { id: u.id } });
@@ -119,7 +119,7 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('saved cadets (loca
 
   it('purge row lock: a cadet who is active again after the stale read is not deleted', async () => {
     const { actor, u } = await guest(30);
-    await saveCadet(db, actor, `pgt-Lock${tag}`, '44444');
+    await saveCadet(db, actor, `pgt-Lock${tag}`, '444444');
     await db.user.update({ where: { id: u.id }, data: { lastActiveAt: new Date(Date.now() - 31 * DAY) } });
     const racing = new Proxy(db, { get: (t, k) => (k === 'user' ? new Proxy(t.user, { get: (x, kk) => (kk === 'findMany' ? async (a) => { const r = await x.findMany(a); await x.update({ where: { id: u.id }, data: { lastActiveAt: new Date() } }); return r; } : x[kk]) }) : t[k]) });
     await purgeInactiveSaved(racing);
@@ -127,8 +127,8 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('saved cadets (loca
   });
 
   it.each([[4, 5], [9, 10], [14, 15], [19, 20], [24, 25], [40, 41]])('lockout SQL: the wrong try after %i misses rests the account for cooldownFor(%i+1) seconds', async (before, n) => {
-    const row = await db.user.create({ data: { name: `pgt-Esc${before}${tag}`, pin: await hashPin('12345'), savedCadet: true, savedAt: new Date(), lastActiveAt: new Date(), failedLoginAttempts: before } });
-    const r = await verifyPin(row.name, '99999');
+    const row = await db.user.create({ data: { name: `pgt-Esc${before}${tag}`, pin: await hashPin('123456'), savedCadet: true, savedAt: new Date(), lastActiveAt: new Date(), failedLoginAttempts: before } });
+    const r = await verifyPin(row.name, '999999');
     expect(r).toMatchObject({ ok: false, status: 401 });
     const after = await db.user.findUnique({ where: { id: row.id } });
     const secs = (after.lockedUntil.getTime() - Date.now()) / 1000;
@@ -136,6 +136,6 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('saved cadets (loca
     expect(secs).toBeGreaterThan(cooldownFor(n) - 10);
     expect(secs).toBeLessThanOrEqual(cooldownFor(n) + 1);
     expect([86400, 7200, 1800, 300, 60]).toContain(cooldownFor(n));
-    expect((await verifyPin(row.name, '12345')).ok).toBe(false); // resting: even the right secret is refused
+    expect((await verifyPin(row.name, '123456')).ok).toBe(false); // resting: even the right secret is refused
   });
 });

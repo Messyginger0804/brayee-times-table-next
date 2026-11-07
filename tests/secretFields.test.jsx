@@ -36,7 +36,7 @@ describe('student ID fields must not look like credentials (password managers wo
     SecretInput({ id: 'x', value: '', onChange: (v) => { got = v; } }).props.children[0].props.onChange({ target: { value: '12a3456789' } });
     expect(html).toMatch(/aria-describedby="x-hint"/);
     expect(html).toMatch(/<span id="x-hint" class="sr-only">Secure entry/);
-    expect(got).toBe('12345678');
+    expect(got).toBe('123456');
   });
 
   it('the save form uses SecretInput (never type=password) and the mask rule exists', () => {

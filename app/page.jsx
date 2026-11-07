@@ -74,6 +74,12 @@ function pickContent(mode, ctx, ui, actions) {
   return <MenuScreen key="menu" user={user} curr={data.curr} stats={testingStats(ctx.filteredProblems, data.userProgress)} ui={ui} actions={actions} />;
 }
 
+/** Shown while the menu can't render yet: the server is unreachable, or we're still signing in / loading problems. */
+function GateView({ loading, user, unreachable, retry }) {
+  if (!loading && !user && unreachable) return <UnreachablePanel onRetry={retry} />;
+  return <LoadingView loading={loading || !user} />;
+}
+
 function AppInner() {
   const { status } = useSession();
   const [user, setUser, { unreachable, retry }] = useAuthUser(status);
@@ -96,8 +102,7 @@ function AppInner() {
 
   const resetGame = makeResetGame({ user, data, setMode, setScopedSkill, applyPendingLevel });
 
-  if (!loading && !user && unreachable) return <UnreachablePanel onRetry={retry} />;
-  if (loading || !user || problemsLoading) return <LoadingView loading={loading || !user} />;
+  if (loading || !user || problemsLoading) return <GateView loading={loading} user={user} unreachable={unreachable} retry={retry} />;
 
   const ctx = { user, scopedSkill, filteredProblems, resetGame, handleLevelUp, data };
   const ui = { cadetWelcome, gradeOpen, lockedOpen, pickedSkill, setGradeOpen, setLockedOpen, setPickedSkill };
