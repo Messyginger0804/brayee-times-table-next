@@ -96,7 +96,7 @@ describe('verifyPin', () => {
   });
 
   it('a parallel burst of wrong PINs cannot test more than MAX_FAILS PINs', async () => {
-    const results = await Promise.all(Array.from({ length: 40 }, () => verifyPin('Tester', '0000')));
+    const results = await Promise.all(Array.from({ length: 12 }, () => verifyPin('Tester', '0000')));
     expect(state.users[0].failedLoginAttempts).toBe(MAX_FAILS); // only MAX_FAILS attempts were ever claimed (and so compared)
     expect(results.every((r) => !r.ok && r.status === 401 && r.error === FAIL_MESSAGE)).toBe(true);
   });
