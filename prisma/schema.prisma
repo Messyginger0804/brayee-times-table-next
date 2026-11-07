@@ -54,7 +54,7 @@ model User {
   image               String?
   level               Int                 @default(1)
   createdAt           DateTime            @default(now())
-  // bcrypt hash of the 4-digit PIN (legacy rows may still hold a plaintext PIN until their next login)
+  // bcrypt hash of the student ID, 5-8 digits (legacy rows may still hold a plaintext value until their next login)
   // Login lockout: 5 failures => lockedUntil = now + 60s; reset on success.
   failedLoginAttempts Int                 @default(0)
   lockedUntil         DateTime?
