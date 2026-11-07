@@ -233,7 +233,8 @@ describe('pre-generated clips', () => {
   });
   it('falls back to speech once on a load error (404), then skips the clip for that line', () => {
     speakCheer('Great job!'); flush();
-    audios[0].onerror(); audios[0].onerror();
+    const onerror = audios[0].onerror;
+    onerror(); onerror();
     expect(spoken.map((u) => u.text)).toEqual(['Great job!']);
     finish();
     vi.advanceTimersByTime(CHEER_GAP_MS);
@@ -278,5 +279,72 @@ describe('pre-generated clips', () => {
     expect(synth.cancel).toHaveBeenCalled();
     flush();
     expect(audios).toHaveLength(1);
+  });
+  it('a stale failure on replaced audio does not blacklist the clip', () => {
+    speakCheer('Great job!'); flush();
+    const old = audios[0];
+    speakBigCheer('Mission complete!'); flush();
+    old.onerror?.();
+    expect(spoken).toHaveLength(0);
+    stopCheers();
+    vi.advanceTimersByTime(CHEER_GAP_MS);
+    speakCheer('Great job!'); flush();
+    expect(audios.at(-1).url).toBe('/audio/braylee/great-job.mp3');
+  });
+  it('a clip that never starts falls back to speech once, without blacklisting', () => {
+    speakCheer('Great job!'); flush();
+    vi.advanceTimersByTime(3001);
+    expect(audios[0].pause).toHaveBeenCalled();
+    expect(spoken.map((u) => u.text)).toEqual(['Great job!']);
+    vi.advanceTimersByTime(10000);
+    expect(spoken).toHaveLength(1);
+    finish();
+    speakCheer('Great job!'); flush();
+    expect(audios).toHaveLength(2);
+  });
+  it('a clip that starts but never ends is caught after its duration plus a margin', () => {
+    speakCheer('Great job!'); flush();
+    audios[0].duration = 2;
+    audios[0].onplaying();
+    vi.advanceTimersByTime(3000);
+    expect(spoken).toHaveLength(0);
+    vi.advanceTimersByTime(600);
+    expect(spoken.map((u) => u.text)).toEqual(['Great job!']);
+  });
+  it('the watchdog is cleared when the clip ends and when it is stopped', () => {
+    speakCheer('Great job!'); flush();
+    audios[0].onplaying(); audios[0].onended();
+    vi.advanceTimersByTime(20000);
+    expect(spoken).toHaveLength(0);
+    vi.advanceTimersByTime(CHEER_GAP_MS);
+    speakBigCheer('Mission complete!'); flush();
+    stopCheers();
+    vi.advanceTimersByTime(20000);
+    expect(spoken).toHaveLength(0);
+  });
+  it('the watchdog does not speak after muting', () => {
+    speakCheer('Great job!'); flush();
+    setMuted(true);
+    vi.advanceTimersByTime(20000);
+    expect(spoken).toHaveLength(0);
+  });
+});
+
+describe('stopCheers and spelling state', () => {
+  it('clears the spelling state so later cheers are not blocked', () => {
+    speakSpelling('Spell: cat'); finish();
+    stopCheers();
+    speakCheer('Great!'); flush();
+    expect(spoken.map((u) => u.text)).toEqual(['Spell: cat', 'Great!']);
+  });
+  it('a late end/error from the stopped utterance does not clear a newer spelling state', () => {
+    speakSpelling('Spell: cat');
+    const old = spoken[0];
+    stopCheers();
+    speakSpelling('Spell: hat');
+    old.onend(); old.onerror();
+    finish();
+    speakCheer('Great!'); flush();
+    expect(spoken.map((u) => u.text)).toEqual(['Spell: cat', 'Spell: hat']);
   });
 });
