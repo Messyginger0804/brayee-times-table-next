@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Astronaut from './space/Astronaut';
 import Button from './ui/Button';
 import { triggerFireworks } from '../lib/fireworks';
+import { useScenePopup } from '../lib/sceneFx';
 import { cadetWelcomeTitle, takeCadetWelcome } from '../lib/cadetWelcome';
 
 const SUBTEXT = "That's your cadet number on this device. Come back on this device anytime to keep your progress.";
@@ -22,6 +23,7 @@ export function useCadetWelcome() {
 export default function CadetWelcome({ welcome, onClose: close }) {
   const reduce = useReducedMotion();
   const ref = useRef(null);
+  useScenePopup(!!welcome);
   const closeRef = useRef(close);
   closeRef.current = close;
 

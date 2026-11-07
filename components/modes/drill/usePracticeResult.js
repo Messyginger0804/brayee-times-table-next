@@ -1,4 +1,5 @@
 import { triggerFireworks } from '../../../lib/fireworks';
+import { gameFx } from '../../../lib/gameFx';
 import { recordStreak } from '../../../lib/bestStreak';
 import { progressAfterCorrect, shouldOfferUnlock } from './attempts';
 
@@ -6,6 +7,7 @@ const PRACTICE_CORRECT_PAUSE_MS = 900;
 const WRONG_PAUSE_MS = 2000;
 
 function celebrate({ scoped, hasShownLevelUnlock, count, setHasShownLevelUnlock, setUnlockOpen }) {
+  gameFx.emit('mastered');
   try { triggerFireworks({ duration: 2200, particles: 260 }); } catch (_) {}
   if (!shouldOfferUnlock({ scoped, alreadyShown: hasShownLevelUnlock, count })) return;
   setHasShownLevelUnlock(true);

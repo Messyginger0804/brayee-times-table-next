@@ -221,7 +221,6 @@ export default function Astronaut({ pose = 'idle', size = 120, className = '', s
           <stop offset="1" stopColor="#4b2fa8" />
         </radialGradient>
         <clipPath id={`${id}v`}><circle cx="90" cy="62" r="36" /></clipPath>
-        <clipPath id={`${id}h`}><circle cx="90" cy="60" r="29" /></clipPath>
         <clipPath id={`${id}c`}><rect x="0" y="0" width={VB_W} height={VB_H} /></clipPath>
       </defs>
 
@@ -296,8 +295,8 @@ export default function Astronaut({ pose = 'idle', size = 120, className = '', s
           <g clipPath={`url(#${id}v)`}>
             <circle cx="90" cy="62" r="36" fill={C.panel} />
             {src ? (
-              // photo at 80% of the visor, centred slightly high, so there is breathing room inside the glass
-              <image href={src} x="61" y="31" width="58" height="58" preserveAspectRatio="xMidYMid slice" clipPath={`url(#${id}h)`} />
+              // transparent cutout (hair, face, collar) over the dark visor; the visor clip is its only edge
+              <image href={src} x="56" y="28" width="68" height="68" preserveAspectRatio="xMidYMid meet" />
             ) : (
               <text x="90" y="76" textAnchor="middle" fontSize="44">👩‍🚀</text>
             )}

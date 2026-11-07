@@ -1,6 +1,8 @@
 "use client";
+import { useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import BrayleeCheer from './braylee/BrayleeCheer';
+import { missionAction } from './modes/shared/homeLogic';
+import { sceneFx, useSceneState } from '../lib/sceneFx';
 
 const PLANETS = ['🪐', '🌍', '🌕', '🔴', '🟠', '🌎', '🟣', '🔵'];
 const COLS = 3;
@@ -14,28 +16,6 @@ function missionStates(skills) {
     ...s,
     state: s.mastered ? 'mastered' : !s.unlocked ? 'locked' : i === firstOpen ? 'current' : 'open',
   }));
-}
-
-/** Who gets the buddy: the current (first open, unmastered) mission, 'done' when all are mastered, else nothing. */
-export function buddyFor(list) {
-  const next = list.find((s) => s.state === 'current');
-  if (next) return { kind: 'next', id: next.id };
-  return list.length && list.every((s) => s.state === 'mastered') ? { kind: 'done' } : null;
-}
-
-function MapBuddy({ buddy }) {
-  const reduce = useReducedMotion();
-  if (!buddy) return null;
-  return (
-    <motion.div
-      aria-hidden="true"
-      className="pointer-events-none mb-2 flex items-center px-1"
-      animate={reduce ? { y: 0 } : { y: [0, -4, 0] }}
-      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-    >
-      <BrayleeCheer layout="row" size={56} pose="idle" moment={buddy.kind === 'next' ? 'mapNudge' : 'idle'} className="w-full" />
-    </motion.div>
-  );
 }
 
 function progressText(s) {
@@ -64,20 +44,32 @@ function progressFraction(s) {
   return s.problems?.total ? s.problems.mastered / s.problems.total : 0;
 }
 
-function PlanetOrb({ state, emoji, reduce }) {
+/** The orb is a transparent slot when the shared 3D canvas is up (it draws the planet here); emoji + ring otherwise. */
+function PlanetOrb({ id, state, idx, emoji, reduce }) {
   const locked = state === 'locked';
+  const slot = useRef(null);
+  const ready = useSceneState((st) => st.ready);
+  useEffect(() => sceneFx.registerPlanet(id, { el: slot.current, state, kind: idx }), [id, state, idx]);
   return (
     <motion.span
+      ref={slot}
       aria-hidden="true"
       animate={state === 'current' && !reduce ? { y: [0, -5, 0] } : { y: 0 }}
       transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-      className={`relative flex h-16 w-16 items-center justify-center rounded-full border-2 bg-space-800 text-[2rem] ${RING[state]} ${locked ? 'grayscale' : ''}`}
+      className={`relative flex h-16 w-16 items-center justify-center rounded-full text-[2rem] ${ready ? 'border-0' : `border-2 bg-space-800 ${RING[state]}`} ${locked && !ready ? 'grayscale' : ''}`}
     >
-      <span className={locked ? 'opacity-40' : ''}>{emoji}</span>
-      {locked && <span className="absolute text-xl">🔒</span>}
+      {!ready && <span className={locked ? 'opacity-40' : ''}>{emoji}</span>}
+      {locked && <span className="absolute text-xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">🔒</span>}
       {state === 'mastered' && <span className="absolute -right-1 -top-1 text-xl">⭐</span>}
     </motion.span>
   );
+}
+
+/** Tap bounce on every planet; a generated mission also zooms in and whooshes before its page opens. */
+function pick(s, onPick) {
+  sceneFx.tap(s.id);
+  if (missionAction(s) === 'route') sceneFx.whoosh(s.id, () => onPick(s));
+  else onPick(s);
 }
 
 function Planet({ s, idx, onPick }) {
@@ -89,12 +81,14 @@ function Planet({ s, idx, onPick }) {
     <li className="relative z-10 flex justify-center" style={{ direction: 'ltr' }}>
       <button
         type="button"
-        onClick={() => onPick(s)}
+        onClick={() => pick(s, onPick)}
+        onPointerEnter={() => sceneFx.hover(s.id)}
+        onPointerLeave={() => sceneFx.hover(null)}
         aria-disabled={locked}
         aria-label={`${name}. ${progressText(s)}${s.state === 'current' ? '. Next mission' : ''}`}
         className="flex min-h-[7.25rem] w-full flex-col items-center gap-1 rounded-chunk px-1 py-1 text-center"
       >
-        <PlanetOrb state={s.state} emoji={PLANETS[idx % PLANETS.length]} reduce={reduce} />
+        <PlanetOrb id={s.id} state={s.state} idx={idx} emoji={PLANETS[idx % PLANETS.length]} reduce={reduce} />
         <span className={`line-clamp-2 text-sm font-bold leading-tight ${locked ? 'text-ink-dim' : 'text-ink'}`}>{name}</span>
         <span className="h-1.5 w-12 overflow-hidden rounded-full bg-space-700" aria-hidden="true">
           <span className={`block h-full rounded-full ${s.state === 'mastered' ? 'bg-neon-lime' : 'bg-neon-amber'}`} style={{ width: `${Math.round(frac * 100)}%` }} />
@@ -103,6 +97,12 @@ function Planet({ s, idx, onPick }) {
       </button>
     </li>
   );
+}
+
+/** Glass card without the backdrop blur once 3D planets sit behind it (blur would smear them). */
+function MapPanel({ children }) {
+  const ready = useSceneState((st) => st.ready);
+  return <div className={`glass rounded-bubble px-2 py-3 ${ready ? '!backdrop-blur-none' : ''}`}>{children}</div>;
 }
 
 /**
@@ -116,7 +116,6 @@ export default function MissionMap({ grade, skills, onPick }) {
   for (let i = 0; i < list.length; i += COLS) {
     rows.push(Array.from({ length: COLS }, (_, k) => (list[i + k] ? { s: list[i + k], idx: i + k } : null)));
   }
-  const buddy = buddyFor(list);
   const done = list.filter((s) => s.state === 'mastered').length;
   return (
     <section aria-labelledby="missions-h" className="w-full max-w-md">
@@ -124,8 +123,7 @@ export default function MissionMap({ grade, skills, onPick }) {
         <h2 id="missions-h" className="text-title text-neon-amber">Grade {grade} Missions</h2>
         <span className="text-body text-ink-dim">{done}/{list.length} done</span>
       </div>
-      <div className="glass rounded-bubble px-2 py-3">
-        <MapBuddy buddy={buddy} />
+      <MapPanel>
         {rows.map((row, r) => {
           const rtl = r % 2 === 1;
           const used = row.filter(Boolean).length;
@@ -143,7 +141,7 @@ export default function MissionMap({ grade, skills, onPick }) {
             </div>
           );
         })}
-      </div>
+      </MapPanel>
       <p className="sr-only">{ordinal(grade)} grade missions, {done} of {list.length} done.</p>
     </section>
   );
