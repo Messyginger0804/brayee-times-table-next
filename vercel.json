@@ -1,4 +1,1 @@
-{
-  "git": { "deploymentEnabled": { "ui-overhaul": false } },
-  "crons": [{ "path": "/api/cron/purge-guests", "schedule": "0 4 * * *" }]
-}
+{"crons":[{"path":"/api/cron/purge-guests","schedule":"0 4 * * *"}],"git":{"deploymentEnabled":{"ui-overhaul":false}},"ignoreCommand":"[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ]"}
