@@ -5,6 +5,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { writeAs, SeatLostError } from '../lib/guestWrite';
 import { wipeSeat, hashToken } from '../lib/guests';
+import { buildSkillStates } from '../lib/skillState';
+import { SKILLS } from '../lib/mathSkills';
 
 const url = process.env.TEST_DATABASE_URL;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -18,6 +20,7 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('guest write vs wip
   });
   afterAll(async () => {
     await db.test.deleteMany({ where: { userId: user.id } });
+    await db.skillUnlock.deleteMany({ where: { userId: user.id } });
     await db.user.delete({ where: { id: user.id } });
     await db.$disconnect();
   });
@@ -54,5 +57,50 @@ describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))('guest write vs wip
     const wipe = wipeSeat(db, user.id, { guestTokenHash: hashToken('fourth'), lastActiveAt: new Date() }, { guestTokenHash: hash });
     await Promise.all([wipe, ...writes]);
     expect(await rows()).toBe(0); // everything written before the wipe was deleted; everything after was refused
+    hash = hashToken('fourth');
+  });
+
+  // buildSkillStates uses the app's prisma client (DATABASE_URL), which must be the same database as TEST_DATABASE_URL
+  if (process.env.DATABASE_URL !== url) console.warn('SKIPPING persisted mission unlock tests: DATABASE_URL must equal TEST_DATABASE_URL');
+  describe.skipIf(process.env.DATABASE_URL !== url)('persisted mission unlocks', () => {
+    const unlocks = () => db.skillUnlock.findMany({ where: { userId: user.id }, select: { skillId: true } }).then((r) => r.map((x) => x.skillId));
+    const firsts = SKILLS.filter((s) => s.order === 1).map((s) => s.id);
+
+    it('the first state load persists the open skills (all grades) and a second load adds nothing', async () => {
+      // buildSkillStates uses the app's prisma client (DATABASE_URL), which must be this same database
+      await buildSkillStates(user.id, null, { id: user.id, gk: hash });
+      expect(new Set(await unlocks())).toEqual(new Set(firsts));
+      await buildSkillStates(user.id, null, { id: user.id, gk: hash });
+      expect((await unlocks()).length).toBe(firsts.length);
+    });
+
+    it('createMany skipDuplicates is idempotent against the unique (userId, skillId)', async () => {
+      const n = (await unlocks()).length;
+      await db.skillUnlock.createMany({ data: [{ userId: user.id, skillId: firsts[0] }], skipDuplicates: true });
+      expect((await unlocks()).length).toBe(n);
+    });
+
+    it('a persist attempted by a session that lost the seat writes nothing', async () => {
+      await db.skillUnlock.deleteMany({ where: { userId: user.id } });
+      await buildSkillStates(user.id, null, { id: user.id, gk: hashToken('stale-owner') });
+      expect(await unlocks()).toEqual([]);
+    });
+
+    it('wiping the seat removes its unlocks, so a recycled seat starts with only the first missions', async () => {
+      await db.skillUnlock.createMany({ data: [{ userId: user.id, skillId: 'extra-skill' }, { userId: user.id, skillId: firsts[0] }] });
+      const next = hashToken('recycled');
+      expect(await wipeSeat(db, user.id, { guestTokenHash: next, lastActiveAt: new Date() }, { guestTokenHash: hash })).toBe(true);
+      hash = next;
+      expect(await unlocks()).toEqual([]);
+      await buildSkillStates(user.id, null, { id: user.id, gk: hash });
+      expect(new Set(await unlocks())).toEqual(new Set(firsts));
+    });
+
+    it('deleting the user cascades to its unlocks', async () => {
+      const u = await db.user.create({ data: { name: `Cascade pgtest ${Date.now()}` } });
+      await db.skillUnlock.create({ data: { userId: u.id, skillId: 'x' } });
+      await db.user.delete({ where: { id: u.id } });
+      expect(await db.skillUnlock.count({ where: { userId: u.id } })).toBe(0);
+    });
   });
 });

@@ -12,6 +12,7 @@ erDiagram
   User ||--o{ SpellingAttempt : has
   User ||--o{ MathSkillProgress : has
   User ||--o{ MathAttempt : has
+  User ||--o{ SkillUnlock : has
   User ||--o{ Account : "next-auth"
   User ||--o{ Session : "next-auth"
   Problem ||--o{ Attempt : has
@@ -29,9 +30,9 @@ erDiagram
 |---|---|---|
 | `User` | Braylee's real account, the guest seats and saved cadets | `name` (unique; `Braylee`, a saved cadet's nickname, or `Guest 001`...), `pin` (bcrypt hash of the student ID, HMAC-peppered; null for guests; the column name is historical), `image` (public path), `level` (times-table level 1 or 2), `grade` (1-6 or null), `failedLoginAttempts` / `lockedUntil` (student-ID lockout, tiers up to 24 h), `isGuest`, `guestSeat` (unique), `guestTokenHash` (unique sha256 of the cookie secret; null = free seat), `lastActiveAt` (drives the 7-day guest idle wipe and the saved-cadet retention), `savedCadet` (true for a saved cadet, default false), `savedAt` (when the guest was saved, nullable) |
 
-Deleting a user cascades to `UserProblem`, `SpellingAttempt`, `MathSkillProgress`, `MathAttempt`, `Account` and `Session`. `Attempt` and `Test` do not cascade (the database sets `Attempt.userId` to null on user delete, and `Test` rows block the delete); the guest wipe (`wipeSeat` in `lib/guests.js`) deletes rows from `attempt`, `test`, `spellingAttempt`, `mathAttempt`, `mathSkillProgress` and `userProblem` explicitly, in one transaction with the seat reset. A saved cadet is deleted by `purgeInactiveSaved` (`lib/savedCadetPurge.js`) the same way (same `SEAT_TABLES`, plus `account` and `session`, then the user row) after `SAVED_CADET_RETENTION_DAYS` idle days; Braylee is excluded.
+Deleting a user cascades to `UserProblem`, `SpellingAttempt`, `MathSkillProgress`, `MathAttempt`, `SkillUnlock`, `Account` and `Session`. `Attempt` and `Test` do not cascade (the database sets `Attempt.userId` to null on user delete, and `Test` rows block the delete); the guest wipe (`wipeSeat` in `lib/guests.js`) deletes rows from `attempt`, `test`, `spellingAttempt`, `mathAttempt`, `mathSkillProgress`, `userProblem` and `skillUnlock` explicitly, in one transaction with the seat reset. A saved cadet is deleted by `purgeInactiveSaved` (`lib/savedCadetPurge.js`) the same way (same `SEAT_TABLES`, plus `account` and `session`, then the user row) after `SAVED_CADET_RETENTION_DAYS` idle days; Braylee is excluded.
 
-A saved cadet is a guest seat row converted in place (`isGuest` false, `guestSeat` and `guestTokenHash` null, `savedCadet` true), so `id` and all progress stay. Names are unique case-sensitively in the database; the save transaction also checks case-insensitively.
+A saved cadet is a guest seat row converted in place (`isGuest` false, `guestSeat` and `guestTokenHash` null, `savedCadet` true), so `id` and all progress stay, including `SkillUnlock` rows (they hang off `userId`, so they follow the cadet, and a purge deletes them with the rest). Names are unique case-sensitively in the database; the save transaction also checks case-insensitively.
 
 ### Times tables
 
@@ -47,6 +48,7 @@ A saved cadet is a guest seat row converted in place (`isGuest` false, `guestSea
 | Model | Purpose | Fields that matter |
 |---|---|---|
 | `MathSkillProgress` | One row per player and skill. Unique `(userId, skillId)` | `levelIndex` (0-based into the skill's levels), `recent` (JSON array `[{ c: boolean, ms: number }]`, oldest first, capped at the skill's window, 20 by default; cleared when the level advances), `attempts`, `correct`, `mastered`, `masteredAt` |
+| `SkillUnlock` | One row per player and mission (any skill id, generated or times-table) that has been unlocked. Unique `(userId, skillId)`, FK to `User` with `ON DELETE CASCADE`. Permanent: nothing deletes a row except a progress wipe (guest `wipeSeat`, user delete, the account cleanup script). Written idempotently (`createMany` with `skipDuplicates`) by `lib/skillState.js` whenever a skill is open but not yet stored, which also backfills existing players on their first load | `skillId`, `unlockedAt` |
 | `MathAttempt` | Append-only log of every generated-problem answer | `skillId`, `levelIndex`, `prompt`, `expected`, `given`, `correct`, `ms` |
 
 The six times-table skills (`g3-mult-0-1-2-5-10`, `g3-mult-3-4`, `g3-mult-9-squares`, `g3-mult-6-7-8`, `g3-mult-mixed`, `g4-mult-11-15`) use the `Problem` / `UserProblem` tables instead and have no rows here.
@@ -92,6 +94,7 @@ Migrations live in `prisma/migrations/<timestamp>_<name>/migration.sql`.
 | `20260501000000_add_math_unlocked_by_parent` | `MathSkillProgress.unlockedByParent` |
 | `20260601000000_add_guest_seats` | `User.isGuest`, `guestSeat` (unique), `guestTokenHash` (unique), `lastActiveAt` |
 | `20260701000000_add_saved_cadets` | `User.savedCadet BOOLEAN NOT NULL DEFAULT false`, `User.savedAt TIMESTAMP(3)` (nullable) |
+| `20260801000000_add_skill_unlock` | Table `SkillUnlock` (unique `(userId, skillId)`, FK to `User` with cascade). Additive only; sorts after `add_saved_cadets` |
 
 Production's migration table also lists two earlier migrations whose source files are not in the repo (`20260129173431_add_login_security`, `20260129174704_add_user_mastery`). Prisma reports them as "not found locally" and carries on. Full adoption steps for production are in [DEPLOY-RUNBOOK.md](DEPLOY-RUNBOOK.md); that document was written for the original adoption, so confirm the current production state with JC before following it.
 

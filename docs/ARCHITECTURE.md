@@ -110,6 +110,7 @@ Implemented in `lib/savedCadets.js` (save), `lib/savedCadetPurge.js` (retention,
 | Cap | `SAVED_CADETS_MAX` (default 10, clamped 0-500); Braylee is not counted. Beyond it: 409 `full`, the kid keeps playing as a guest |
 | Nickname | 2-16 characters (letters, numbers, space, `'`, `-`), unique case-insensitively, reserved names (Braylee, Bray, Guest, Cadet) and profanity refused |
 | Retention | Deleted with all their data after `SAVED_CADET_RETENTION_DAYS` (default 30, clamped 1-3650) without activity (`lastActiveAt`). Runs lazily (sign-in, saves, every few minutes on saved-cadet requests) and in the daily cron. Braylee is never purged |
+| Progress rows | Conversion is in place, so every progress row (including `SkillUnlock`) keeps its `userId` and follows the cadet. The purge deletes `SEAT_TABLES` (which includes `skillUnlock`) plus `account` and `session`; the refilled guest seat is a new row with no unlocks |
 | Session | The JWT carries `sc`. `getActor()` re-checks the row is still a saved cadet and refreshes `lastActiveAt` (throttled), so a purged cadet is signed out |
 | Isolation | Every API route is scoped to the caller's own id; a saved cadet reads and writes only their own data |
 
@@ -206,7 +207,7 @@ Pure JavaScript in `lib/curriculum/math` (no UI, DB or network): 79 skills and 2
 App glue:
 
 - `lib/mathSkills.js`: flattens the spec; `LEVEL_ADVANCE_WINDOW = 10` (last 10 answers at a non-final level decide the level-up) and `WINDOW_DEFAULT = 20` (final level: last 20 decide mastery). A correct answer counts only if it is also within the skill's `secondsPerProblem` using the measured `ms`.
-- `lib/skillState.js`: builds per-user state for `GET /api/curriculum/me`. A skill unlocks if it is first in its grade, already mastered, already attempted, or the previous skill in the same grade is mastered.
+- `lib/skillState.js`: builds per-user state for `GET /api/curriculum/me`. A skill unlocks if it is first in its grade, already mastered, already attempted, the previous skill in the same grade is mastered, or it was unlocked before. Unlocks are stored in `SkillUnlock` (one extra read per request; new ones are written with an idempotent `createMany`, through `writeAs` so a wiped guest seat cannot receive them) and are permanent until the player's progress is wiped.
 - Six times-table skills (`lib/problemSkills.js`) are backed by the 144 `Problem` rows (`UserProblem` / `Attempt`) instead of generators; `POST /api/math/attempt` rejects them with 400. A fact is mastered after 3 correct answers in a row (`lib/mastery.js`); any miss clears it.
 - Spelling content: authored in `docs/curriculum/spelling.json`, imported into `SpellingWord` by `npm run db:import-spelling`. The API falls back to the bundled `lib/spellingWords.json` (54 words) if the table is empty or unreachable.
 

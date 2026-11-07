@@ -7,7 +7,7 @@ import { guestSeatCount, hashToken } from '../lib/guests';
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-09-01T12:00:00Z');
 const daysAgo = (d) => new Date(NOW.getTime() - d * DAY);
-const TABLES = ['attempt', 'test', 'spellingAttempt', 'mathAttempt', 'mathSkillProgress', 'userProblem', 'account', 'session'];
+const TABLES = ['attempt', 'test', 'spellingAttempt', 'mathAttempt', 'mathSkillProgress', 'userProblem', 'skillUnlock', 'account', 'session'];
 
 /** In-memory prisma stand-in: just enough of User plus per-user child tables. $transaction snapshots and rolls back on throw. */
 function fakeDb() {
@@ -109,6 +109,17 @@ describe('saveCadet', () => {
     expect(db.rows.mathSkillProgress).toHaveLength(1); expect(db.rows.attempt).toHaveLength(1); // progress kept
   });
 
+  it('keeps the seat\'s mission unlocks with the cadet, and the refilled guest seat starts with none', async () => {
+    const seat = seedGuest(db, 2);
+    db.rows.skillUnlock.push({ userId: seat.id, skillId: 'x' }, { userId: seat.id, skillId: 'y' });
+    await saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '246801', NOW);
+    expect(db.rows.skillUnlock).toEqual([{ userId: seat.id, skillId: 'x' }, { userId: seat.id, skillId: 'y' }]);
+    const fresh = db.users.filter((u) => u.isGuest && u.guestSeat === 2);
+    expect(fresh).toHaveLength(1);
+    expect(fresh[0].id).not.toBe(seat.id);
+    expect(db.rows.skillUnlock.some((r) => r.userId === fresh[0].id)).toBe(false);
+  });
+
   it('refills the guest pool back to GUEST_SEATS with an empty, free seat', async () => {
     const s1 = seedGuest(db, 1); seedGuest(db, 2, { guestTokenHash: hashToken('other') }); seedGuest(db, 3, { guestTokenHash: null });
     await saveCadet(db, { id: s1.id, gk: TOKEN }, 'Luna', '246801', NOW);
@@ -184,6 +195,7 @@ describe('retention purge', () => {
     expect(await purgeInactiveSaved(db, NOW)).toBe(1);
     expect(db.users.map((u) => u.name)).toEqual(['Fresh']);
     for (const t of TABLES) expect(db.rows[t].map((r) => r.userId)).toEqual([fresh.id]);
+    expect(db.rows.skillUnlock.map((r) => r.userId)).toEqual([fresh.id]); // unlocks go with the cadet
   });
 
   it('honours SAVED_CADET_RETENTION_DAYS', async () => {

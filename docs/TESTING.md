@@ -40,7 +40,8 @@ Tests do not need a database, a network or a running server, except the one gate
 
 ## Which tests need Postgres
 
-Two files: `tests/guestWrite.pg.test.js` and `tests/savedCadets.pg.test.js`. The first proves the `FOR SHARE` lock in `lib/guestWrite.js` and the row lock in `wipeSeat` exclude each other, which mocks cannot show. The second runs `saveCadet`, `purgeInactiveSaved` and `verifyPin` against real rows; its rows are named with the prefix `pgt-` and removed afterwards.
+Two files: `tests/guestWrite.pg.test.js` and `tests/savedCadets.pg.test.js`. The first proves the `FOR SHARE` lock in `lib/guestWrite.js` and the row lock in `wipeSeat` exclude each other, which mocks cannot show. The second runs `saveCadet`, `purgeInactiveSaved` and `verifyPin` against real rows (including that `SkillUnlock` rows survive a save and are deleted by a purge); its rows are named with the prefix `pgt-` and removed afterwards.
+`tests/guestWrite.pg.test.js` also covers persisted mission unlocks (`SkillUnlock`: persist, idempotence, lost-seat write, seat wipe, cascade; skipped with a console warning unless `DATABASE_URL` equals `TEST_DATABASE_URL`).
 
 - Each is declared with `describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))`, where `url = process.env.TEST_DATABASE_URL`. So it runs only when `TEST_DATABASE_URL` is set **and** points at localhost or 127.0.0.1. A remote URL always skips; this is a safety guard so it never touches production.
 - The database must already be migrated. The tests create and delete their own temporary rows.
