@@ -83,14 +83,28 @@ describe('director regressions', () => {
     expect(d.current()).toBeNull();
   });
 
-  it('auto-releases a hold that outlives the safety net', () => {
+  it('auto-releases a card or bubble that outlives the safety net', () => {
     vi.useFakeTimers();
     const warn = vi.fn();
     const d = createDirector({ maxHoldMs: 1000, warn });
-    d.claim('modal');
+    d.claim('streak');
     vi.advanceTimersByTime(1001);
     expect(d.current()).toBeNull();
-    expect(warn).toHaveBeenCalledOnce();
+    d.claim('bubble');
+    vi.advanceTimersByTime(1001);
+    expect(d.current()).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it('never auto-releases a modal, even after 60s', () => {
+    vi.useFakeTimers();
+    const d = createDirector();
+    const release = d.claim('modal');
+    vi.advanceTimersByTime(60000);
+    expect(d.current()).toBe('modal');
+    release();
+    expect(d.current()).toBeNull();
     vi.useRealTimers();
   });
 });
