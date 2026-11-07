@@ -16,6 +16,13 @@ const SlotContext = createContext(() => {});
 const GIF_KIND = { levelUp: 'streak', streak: 'streak', celebrate: 'celebrate', tryAgain: 'celebrate', welcome: 'celebrate' };
 const PENDING_MODAL_MS = 2000;
 
+// Hold the stage for the modal that is about to open (it re-claims on mount); give it back if it never does
+function reserveModal(pending) {
+  const hold = director.claim('modal');
+  clearTimeout(pending.current);
+  pending.current = setTimeout(() => hold?.(), PENDING_MODAL_MS);
+}
+
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function saveDataOn() {
@@ -148,12 +155,7 @@ export function GifProvider({ children }) {
        * (no GIF card, no astronaut bubble, not even for a frame) and let the modal take it over; the confetti still plays.
        */
       levelUp({ modal = false } = {}) {
-        if (modal) {
-          dismiss();
-          const hold = director.claim('modal');
-          clearTimeout(pendingModal.current);
-          pendingModal.current = setTimeout(() => hold?.(), PENDING_MODAL_MS);
-        } else show('levelUp');
+        if (modal) { dismiss(); reserveModal(pendingModal); } else show('levelUp');
         gameFx.emit('levelUp');
       },
       preload,
