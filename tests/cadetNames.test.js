@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isProfane, isReservedName, normalizeName, validateNickname, validateSecret, isValidStudentId, STUDENT_ID_MIN, STUDENT_ID_MAX } from '../lib/cadetNames';
+import { isProfane, isReservedName, normalizeName, validateNickname, validateSecret, isValidStudentId, STUDENT_ID_LENGTH, STUDENT_ID_PATTERN, STUDENT_ID_ERROR } from '../lib/cadetNames';
 
 describe('validateNickname', () => {
   it.each(['Luna', 'Mo', 'Star Girl', "O'Neil", 'Mary-Jane', 'Kim7', 'A'.repeat(16), '  Zed   Zed  '])('accepts %j', (n) => {
@@ -41,12 +41,14 @@ describe('validateNickname', () => {
   });
 });
 
+const BAD = ['12345', '1234567', '12345678', '1234a6', '12 456', '123-456', ' 123456', '123456 ', '123456\n', '１２３４５６', '١٢٣٤٥٦', ''];
 describe('student ID bounds', () => {
-  it('accepts 5 to 8 digits only', () => {
-    expect([STUDENT_ID_MIN, STUDENT_ID_MAX]).toEqual([5, 8]);
-    expect(['1234', '12345', '12345678', '123456789'].map(isValidStudentId)).toEqual([false, true, true, false]);
-    expect(isValidStudentId('1234a')).toBe(false);
-    expect(isValidStudentId(12345)).toBe(false);
+  it('accepts exactly 6 ASCII digits only', () => {
+    expect(STUDENT_ID_LENGTH).toBe(6);
+    expect(STUDENT_ID_PATTERN).toBe('\\d{6}');
+    expect(['123456', '000123', '012345'].map(isValidStudentId)).toEqual([true, true, true]);
+    for (const bad of BAD) expect(isValidStudentId(bad)).toBe(false);
+    for (const bad of [123456, null, undefined, ['123456']]) expect(isValidStudentId(bad)).toBe(false);
   });
   it('the error asks for a student ID and never says secret number', () => {
     const e = validateSecret('1234', '1234').error;
@@ -55,13 +57,14 @@ describe('student ID bounds', () => {
   });
 });
 describe('validateSecret', () => {
-  it('needs 5 to 8 digits, entered twice the same', () => {
-    expect(validateSecret('12345', '12345')).toEqual({ ok: true });
-    for (const id of ['12345', '1234567', '98765432']) expect(validateSecret(id, id)).toEqual({ ok: true });
-    for (const bad of ['1234', '123456789', 'abcde', '12 45', '', null, undefined, 12345.5]) expect(validateSecret(bad, bad).ok).toBe(false);
-    expect(validateSecret('12345', '12346').ok).toBe(false);
+  it('needs exactly 6 digits, entered twice the same', () => {
+    for (const id of ['123456', '012345', '000000']) expect(validateSecret(id, id)).toEqual({ ok: true });
+    for (const bad of [...BAD, null, undefined, 123456, 12345.5]) expect(validateSecret(bad, bad)).toEqual({ ok: false, error: STUDENT_ID_ERROR });
+    expect(STUDENT_ID_ERROR).toBe('Your student ID is 6 numbers.');
+    expect(validateSecret('123456', '123457').ok).toBe(false);
+    expect(validateSecret('123456', 123456).ok).toBe(false);
   });
   it('error messages never contain the digits', () => {
-    expect(JSON.stringify([validateSecret('12345', '54321'), validateSecret('12', '12')])).not.toMatch(/12345|54321/);
+    expect(JSON.stringify([validateSecret('123456', '654321'), validateSecret('12', '12')])).not.toMatch(/123456|654321/);
   });
 });

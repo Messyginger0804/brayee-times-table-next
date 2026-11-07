@@ -101,7 +101,7 @@ Production's migration table also lists two earlier migrations whose source file
 |---|---|
 | Fresh local or Docker database | `npm run db:migrate` (`prisma migrate deploy`). The Docker entrypoint runs `prisma migrate deploy` and `prisma db seed` on every start |
 | New migration while developing | `npm run prisma:migrate` (`prisma migrate dev`) against a local database only, then commit the generated folder |
-| Seeding | `npm run db:seed`. `prisma/seed.js` seeds the 144 problems if none exist, then calls `prisma/seed-users.js`, which creates Braylee only if missing and reads the student ID from `SEED_BRAYLEE_PIN`, 5-8 digits (see [ARCHITECTURE.md](ARCHITECTURE.md#student-id-sign-in-braylee-and-saved-cadets)) |
+| Seeding | `npm run db:seed`. `prisma/seed.js` seeds the 144 problems if none exist, then calls `prisma/seed-users.js`, which creates Braylee only if missing and reads the student ID from `SEED_BRAYLEE_PIN`, exactly 6 digits (see [ARCHITECTURE.md](ARCHITECTURE.md#student-id-sign-in-braylee-and-saved-cadets)) |
 | Production | Never automatic. Migrations do not run on deploy. Run them by hand, before merging the code that needs them |
 
 ## Rules for adding migrations

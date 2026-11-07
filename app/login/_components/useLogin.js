@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import { isValidStudentId, STUDENT_ID_MIN, STUDENT_ID_MAX } from '../../../lib/cadetNames';
+import { isValidStudentId, STUDENT_ID_ERROR } from '../../../lib/cadetNames';
 import { confirmSession } from '../../../lib/confirmSession';
 import { queueCadetWelcome } from '../../../lib/cadetWelcome';
 
@@ -12,7 +12,7 @@ const GUEST_FAIL = 'Could not start a guest game. Try again!';
 
 function validateLogin(name, pin) {
   if (!String(name).trim()) return 'Type your name first.';
-  if (!isValidStudentId(String(pin))) return `Your student ID needs ${STUDENT_ID_MIN} to ${STUDENT_ID_MAX} numbers.`;
+  if (!isValidStudentId(String(pin))) return STUDENT_ID_ERROR;
   return '';
 }
 

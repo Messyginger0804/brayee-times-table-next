@@ -1,7 +1,7 @@
 "use client";
 import Button from '../../../components/ui/Button';
 import SecretInput from '../../../components/ui/SecretInput';
-import { STUDENT_ID_MAX, STUDENT_ID_PATTERN } from '../../../lib/cadetNames';
+import { STUDENT_ID_LENGTH, STUDENT_ID_PATTERN } from '../../../lib/cadetNames';
 import ShakeError from './ShakeError';
 
 const fieldCls = 'w-full min-h-[3.25rem] rounded-chunk border-2 border-white/20 bg-space-900/80 px-4 text-lead text-ink placeholder:text-ink-dim/80 focus:border-neon-cyan focus:outline-none focus:ring-2 focus:ring-neon-cyan/60';
@@ -16,8 +16,8 @@ export default function CredentialsForm({ name, setName, pin, setPin, error, loa
       </div>
       <div>
         <label htmlFor="student-id" className="block text-body font-bold">Student ID</label>
-        <p id="student-id-help" className="mb-1 text-left text-body text-ink-dim">The 5–8 digit number you use for lunch at school</p>
-        <SecretInput id="student-id" name="student_number" className={`${fieldCls} tracking-[0.5em]`} placeholder="•••••" value={pin} maxLength={STUDENT_ID_MAX}
+        <p id="student-id-help" className="mb-1 text-left text-body text-ink-dim">The 6 digit number you use for lunch at school</p>
+        <SecretInput id="student-id" name="student_number" className={`${fieldCls} tracking-[0.5em]`} placeholder="••••••" value={pin} maxLength={STUDENT_ID_LENGTH}
           pattern={STUDENT_ID_PATTERN} describedBy="student-id-help" onChange={setPin} required />
       </div>
       <div aria-live="polite" className="min-h-[1.5rem]">
