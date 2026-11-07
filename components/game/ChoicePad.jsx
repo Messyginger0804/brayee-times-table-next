@@ -12,7 +12,7 @@ export default function ChoicePad({ choices, onPick, disabled = false }) {
         <motion.button
           key={c} type="button" disabled={disabled} whileTap={{ scale: 0.92, y: 2 }} onClick={() => onPick(c)}
           aria-label={LABEL[c] || c}
-          className="btn-chunk touch-target flex h-20 items-center justify-center rounded-chunk border border-white/15 bg-space-700 font-bold capitalize text-ink shadow-chunk select-none"
+          className="btn-chunk touch-manipulation touch-target flex h-20 items-center justify-center rounded-chunk border border-white/15 bg-space-700 font-bold capitalize text-ink shadow-chunk select-none"
         >
           <span className={symbols ? 'text-[2.75rem] leading-none' : 'text-lead'}>{c}</span>
         </motion.button>

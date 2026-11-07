@@ -29,7 +29,7 @@ function Frac({ num, den, typed, status }) {
  */
 export default function PromptParts({ parts, typed, status }) {
   return (
-    <p className="flex flex-wrap items-center justify-center gap-x-0.5 gap-y-2 font-bold text-ink" aria-label={`Question: ${parts.map(partText).join('')}`}>
+    <p className="flex flex-wrap items-center justify-center gap-x-0.5 gap-y-2 font-bold text-ink">
       {parts.map((p, i) => {
         switch (p.t) {
           case 'text': return <span key={i} className="whitespace-pre-wrap">{p.v}</span>;
