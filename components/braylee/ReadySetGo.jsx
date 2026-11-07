@@ -3,10 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Astronaut from '../space/Astronaut';
 import { pickLine } from '../../config/brayleeLines';
-import { speakCheer } from '../../lib/cheerVoice';
-import { cancelSpeech } from '../../lib/voice';
+import { speakCheer, stopCheers } from '../../lib/cheerVoice';
 import { buildSteps, nextIndex, introKeyAction, INTRO_SPEECH, REDUCED_SPEECH } from '../../lib/readySetGo';
-
 
 // Steps through the timeline with one timeout per step; cleared on unmount.
 function useIntroSteps(steps, onDone) {
@@ -46,7 +44,7 @@ function useIntroControls(onDone, reduced) {
     finished.current = true;
     doneRef.current();
   }, []);
-  const skip = useCallback(() => { cancelSpeech(); finish(); }, [finish]);
+  const skip = useCallback(() => { stopCheers(); finish(); }, [finish]);
   useEffect(() => { speakCheer(reduced ? REDUCED_SPEECH : INTRO_SPEECH); }, [reduced]);
   useEffect(() => { skipRef.current?.focus({ preventScroll: true }); }, []);
   useSkipKeys(skip);

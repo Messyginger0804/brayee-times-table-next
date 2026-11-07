@@ -5,6 +5,7 @@ import Astronaut, { ASTRONAUT_RATIO, POSE_MS } from '../space/Astronaut';
 import { gameFx } from '../../lib/gameFx';
 import { pickLine } from '../../config/brayleeLines';
 import { speakCheer } from '../../lib/cheerVoice';
+import ReplayBubble from './ReplayBubble';
 
 const PRIORITY = { idle: 0, welcome: 1, correct: 2, tryAgain: 3, streak: 4, levelUp: 5 };
 // gameFx event -> pose and Braylee line moment. An event may carry its own `moment` (e.g. 'spellingCorrect').
@@ -28,7 +29,7 @@ const repeatsGif = (line) => {
  * (correct / wrong / streak / levelUp / session), plays the matching pose once, shows a cheer line from
  * config/brayleeLines.js (skipped when the GIF card already says it) and speaks that same line via cheerVoice.
  * Plays `welcome` on mount (no bubble). Higher-priority poses are never interrupted.
- * Never takes pointer events. The bubble text lives in a polite live region.
+ * Only the bubble takes pointer events (tap = hear her say it again). The text is announced from a polite live region.
  */
 export default function AstronautStage({ size = 92, listen = true, className = 'relative' }) {
   const reduce = useReducedMotion();
@@ -87,19 +88,20 @@ export default function AstronautStage({ size = 92, listen = true, className = '
     >
       <Astronaut host hostAlt="Braylee" pose={pose} size={size} />
       {/* The bubble hangs below the astronaut so it never covers the level / streak / stars chips beside or above it */}
-      <div aria-live="polite" role="status" className="pointer-events-none absolute left-1 top-[94%] z-50">
+      <div className="pointer-events-none absolute left-1 top-[94%] z-50">
+        <div aria-live="polite" role="status" className="sr-only">{line}</div>
         {line && (
-          <motion.p
+          <ReplayBubble
             key={line}
+            text={line}
             initial={reduce ? false : { opacity: 0, scale: 0.7, y: -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 420, damping: 22 }}
             style={{ transformOrigin: 'top left' }}
-            className="relative w-max max-w-[9.5rem] rounded-chunk border-2 border-neon-cyan bg-ink px-3 py-1.5 text-body font-bold leading-tight text-space-950 shadow-glow-cyan"
+            className="relative w-max max-w-[9.5rem] px-3 py-1.5 text-left leading-tight"
           >
             <span aria-hidden="true" className="absolute -top-[7px] left-7 h-3 w-3 rotate-45 border-l-2 border-t-2 border-neon-cyan bg-ink" />
-            {line}
-          </motion.p>
+          </ReplayBubble>
         )}
       </div>
     </div>

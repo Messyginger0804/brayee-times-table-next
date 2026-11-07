@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
-import { cancelSpeech } from '../../../lib/voice';
 import { recordStreak } from '../../../lib/bestStreak';
+import { stopCheers } from '../../../lib/cheerVoice';
 import { startAfterIntro } from '../../../lib/readySetGo';
 import { speakWord, isCorrectSpelling, spellingPauseMs, pickRandom } from './spellingLogic';
 
@@ -18,7 +18,7 @@ export function useSpellingRound({ wordsRef, feedback }) {
 
   const cancelIntro = useRef(null);
 
-  useEffect(() => () => { cancelIntro.current?.(); clearTimeout(timer.current); cancelSpeech(); }, []);
+  useEffect(() => () => { cancelIntro.current?.(); clearTimeout(timer.current); stopCheers(); }, []);
 
   const startRound = () => {
     const list = wordsRef.current;
