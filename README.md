@@ -1,4 +1,6 @@
-Braylee's Times Tables — Next.js
+Braylee's Space Academy — Next.js
+
+Math & spelling missions for space cadets.
 
 This is a Next.js port of the existing Vite + Express app in `../braylees_times_table`, preserving the same features:
 
@@ -71,7 +73,7 @@ API Overview
 
 Notes
 
-- Public assets (Braylee.jpg and GIFs) are copied under `public/`.
+- Public assets (Braylee's cutout in `public/braylee/` and GIFs) are copied under `public/`.
 - Tailwind and the "Gochi Hand" Google font are configured to match the original styling.
 
 # brayee-times-table-next

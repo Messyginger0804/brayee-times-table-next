@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { triggerFireworks } from '../../../lib/fireworks';
+import { gameFx } from '../../../lib/gameFx';
 import { recordStreak } from '../../../lib/bestStreak';
 import { generateProblem, checkAnswer, createRng } from '../../../lib/curriculum/math/index.js';
 import { startAfterIntro } from '../../../lib/readySetGo';
@@ -18,7 +19,7 @@ function celebrate(c, lvl, { setLevelIndex, setModal, feedback }) {
   if (!c) return;
   if (c.kind === 'level') setLevelIndex(lvl);
   feedback.levelUp();
-  if (c.kind === 'mastered') { try { triggerFireworks({ duration: 2200, particles: 260 }); } catch (_) {} }
+  if (c.kind === 'mastered') { gameFx.emit('mastered'); try { triggerFireworks({ duration: 2200, particles: 260 }); } catch (_) {} }
   setModal(c);
 }
 

@@ -12,7 +12,7 @@ export async function main() {
   await prisma.user.upsert({
     where: { name: 'Braylee' },
     update: {},
-    create: { name: 'Braylee', pin: await hash('5106'), image: '/Braylee.jpg' },
+    create: { name: 'Braylee', pin: await hash('5106'), image: '/braylee/face-512.webp' },
   });
   console.log('Users seeded');
 }

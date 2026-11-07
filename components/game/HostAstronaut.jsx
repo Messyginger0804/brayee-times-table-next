@@ -10,9 +10,12 @@ export const HOST_LINES = ['Pick a mission, Cadet!', "You're gonna be sooo smart
 /** Speech bubble in a polite live region. `tail`: where the pointer sits ('top' | 'left'). */
 export function SpeechBubble({ text, tail = 'top', className = '' }) {
   const reduce = useReducedMotion();
-  const tailCls = tail === 'left'
-    ? '-left-[7px] top-1/2 -translate-y-1/2 border-b-2 border-l-2'
-    : '-top-[7px] left-1/2 -translate-x-1/2 border-l-2 border-t-2';
+  const TAILS = {
+    left: '-left-[7px] top-1/2 -translate-y-1/2 border-b-2 border-l-2',
+    top: '-top-[7px] left-1/2 -translate-x-1/2 border-l-2 border-t-2',
+    none: 'hidden',
+  };
+  const tailCls = TAILS[tail] || TAILS.top;
   return (
     <div aria-live="polite" role="status" className={className}>
       {text ? (

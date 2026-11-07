@@ -12,18 +12,18 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const base = readFileSync(join(root, 'scripts/icons/helmet.svg'), 'utf8');
 const facePath = join(root, 'public/braylee/face-512.webp');
 
-// Face crops (square, from the 512px face image) as webp data URIs.
-// wide: forehead to chin with a little shoulder, fills the visor. tight: face only, for 16-48px favicons.
+// Face crops (square, from the transparent 512px cutout) as webp data URIs.
+// wide: the whole cutout (hair, face, collar), fills the visor. tight: head and face, for 16-48px favicons.
 async function faceUri(crop, px) {
-  const buf = await sharp(facePath).extract(crop).resize(px, px).webp({ quality: 82 }).toBuffer();
+  const buf = await sharp(facePath).extract(crop).resize(px, px).webp({ quality: 85, alphaQuality: 100 }).toBuffer();
   return `data:image/webp;base64,${buf.toString('base64')}`;
 }
-const wide = await faceUri({ left: 60, top: 118, width: 380, height: 380 }, 320);
-const tight = await faceUri({ left: 120, top: 150, width: 260, height: 260 }, 160);
+const wide = await faceUri({ left: 0, top: 0, width: 512, height: 512 }, 320);
+const tight = await faceUri({ left: 40, top: 60, width: 400, height: 400 }, 160);
 
 // Full helmet art: the empty helmet with her face in the visor instead of the "B".
 const FACE_IN_VISOR = `<clipPath id="vis"><rect x="104" y="140" width="304" height="264" rx="116" ry="116"/></clipPath>
-    <image href="${wide}" x="104" y="124" width="304" height="304" preserveAspectRatio="xMidYMid slice" clip-path="url(#vis)"/>
+    <image href="${wide}" x="110" y="132" width="292" height="292" preserveAspectRatio="xMidYMid slice" clip-path="url(#vis)"/>
     <rect x="104" y="140" width="304" height="264" rx="116" ry="116" fill="none" stroke="#38f0ff" stroke-width="6"/>`;
 const src = base.replace(/<!-- B glow \+ B -->[\s\S]*?(?=<!-- sheen -->)/, FACE_IN_VISOR + '\n    ').replace('stroke-opacity="0.75"', 'stroke-opacity="0.4"');
 
@@ -32,6 +32,7 @@ const simple = base.replace(/<!--ART-->[\s\S]*<\/svg>/, `<!--ART-->
   <g id="art">
     <circle cx="256" cy="262" r="226" fill="url(#rim)"/>
     <clipPath id="face"><circle cx="256" cy="262" r="186"/></clipPath>
+    <circle cx="256" cy="262" r="186" fill="#0a1030"/>
     <image href="${tight}" x="70" y="76" width="372" height="372" preserveAspectRatio="xMidYMid slice" clip-path="url(#face)"/>
     <circle cx="256" cy="262" r="186" fill="none" stroke="#38f0ff" stroke-width="14"/>
     <path d="M410 40 Q414 76 450 80 Q414 84 410 120 Q406 84 370 80 Q406 76 410 40Z" fill="#b6ff3b"/>

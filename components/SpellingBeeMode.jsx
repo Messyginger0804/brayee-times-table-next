@@ -7,6 +7,7 @@ import Header from './Header';
 import Screen from './ui/Screen';
 import GameHud from './game/GameHud';
 import { useFeedback, GifSlot } from './gif/GifProvider';
+import { useSceneKind } from '../lib/sceneFx';
 import { CenterScreen } from './modes/shared/GateViews';
 import { StartPanel, RoundPanel } from './modes/shared/SpellingViews';
 import { useAuthUser, useLoginRedirect } from './modes/shared/useAuthUser';
@@ -17,6 +18,7 @@ function SpellingBeeMode() {
   const { status: authStatus } = useSession();
   const router = useRouter();
   const feedback = useFeedback();
+  useSceneKind('bee');
   const [user] = useAuthUser(authStatus);
   useLoginRedirect(authStatus);
   const loading = authStatus === 'loading';

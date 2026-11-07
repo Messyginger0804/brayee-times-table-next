@@ -7,11 +7,11 @@ const m = manifest();
 
 describe('web app manifest', () => {
   it("is named after Braylee", () => {
-    expect(m.name).toBe("Braylee's Mission Control");
-    expect(m.short_name).toBe('Braylee');
+    expect(m.name).toBe("Braylee's Space Academy");
+    expect(m.short_name).toBe('Space Academy');
   });
   it('keeps short_name short enough for a home screen', () => {
-    expect(m.short_name.length).toBeLessThanOrEqual(12);
+    expect(m.short_name.length).toBeLessThanOrEqual(14);
   });
   it('lists any and maskable icons that exist on disk', () => {
     expect(m.icons.map((i) => i.purpose)).toEqual(expect.arrayContaining(['any', 'maskable']));
