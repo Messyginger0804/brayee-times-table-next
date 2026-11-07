@@ -23,6 +23,25 @@ function reserveModal(pending) {
   pending.current = setTimeout(() => hold?.(), PENDING_MODAL_MS);
 }
 
+const cooledDown = (since) => Date.now() - since >= GIF_SETTINGS.cooldownMs;
+function isMilestone(n) {
+  const ms = GIF_SETTINGS.streakMilestones;
+  const top = ms[ms.length - 1];
+  return ms.includes(n) || (n > top && GIF_SETTINGS.streakRepeatEvery > 0 && n % GIF_SETTINGS.streakRepeatEvery === 0);
+}
+
+// Level up: the modal reserves the stage (no card); otherwise the record card shows
+function levelUpCard(opts?.modal, { show, dismiss, pendingModal }) {
+  if (!modal) { show('levelUp'); return; }
+  dismiss();
+  reserveModal(pendingModal);
+}
+
+function releaseSlot(ref) {
+  ref.current?.();
+  ref.current = null;
+}
+
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function saveDataOn() {
@@ -66,8 +85,7 @@ export function GifProvider({ children }) {
 
   const dismiss = useCallback(() => {
     clearTimeout(timer.current);
-    release.current?.();
-    release.current = null;
+    releaseSlot(release);
     setActive(null);
   }, []);
 
@@ -75,13 +93,9 @@ export function GifProvider({ children }) {
     const gif = queue.current[cat] || choose(cat);
     if (!gif) return;
     // One big moment at a time: a modal (or a higher-ranked card) holding the stage drops this card, no backlog
-    const mine = director.claim(GIF_KIND[cat], () => {
-      clearTimeout(timer.current);
-      release.current = null;
-      setActive(null);
-    });
-    if (!mine) return;
-    release.current = mine;
+    // (a displaced card's release is a no-op, so dismiss doubles as the preempt handler)
+    release.current = director.claim(GIF_KIND[cat], dismiss);
+    if (!release.current) return;
     queue.current[cat] = null;
     recent.current[cat] = gif.id;
     lastShownAt.current = Date.now();
@@ -104,12 +118,6 @@ export function GifProvider({ children }) {
   }, [preload]);
 
   const api = useMemo(() => {
-    const cooledDown = () => Date.now() - lastShownAt.current >= GIF_SETTINGS.cooldownMs;
-    const isMilestone = (n) => {
-      const ms = GIF_SETTINGS.streakMilestones;
-      const top = ms[ms.length - 1];
-      return ms.includes(n) || (n > top && GIF_SETTINGS.streakRepeatEvery > 0 && n % GIF_SETTINGS.streakRepeatEvery === 0);
-    };
     return {
       /**
        * Session started (entering a game mode / first menu view).
@@ -134,7 +142,7 @@ export function GifProvider({ children }) {
         let cat = null;
         if (setComplete || newBest) cat = 'levelUp';
         else if (isMilestone(streak)) cat = 'streak';
-        else if (cooledDown() && Math.random() < GIF_SETTINGS.celebrateChance) cat = 'celebrate';
+        else if (cooledDown(lastShownAt.current) && Math.random() < GIF_SETTINGS.celebrateChance) cat = 'celebrate';
         if (cat) show(cat, { n: streak });
         if (cat === 'streak') gameFx.emit('streak', { n: streak });
         else if (cat === 'levelUp') gameFx.emit('levelUp');
@@ -154,8 +162,8 @@ export function GifProvider({ children }) {
        * Level up. With `modal: true` the caller is about to open the level-up/mastery modal: reserve the stage now
        * (no GIF card, no astronaut bubble, not even for a frame) and let the modal take it over; the confetti still plays.
        */
-      levelUp({ modal = false } = {}) {
-        if (modal) { dismiss(); reserveModal(pendingModal); } else show('levelUp');
+      levelUp(opts) {
+        levelUpCard(opts?.modal, { show, dismiss, pendingModal });
         gameFx.emit('levelUp');
       },
       preload,
