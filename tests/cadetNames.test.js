@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isProfane, isReservedName, normalizeName, validateNickname, validateSecret } from '../lib/cadetNames';
+import { isProfane, isReservedName, normalizeName, validateNickname, validateSecret, isValidStudentId, STUDENT_ID_MIN, STUDENT_ID_MAX } from '../lib/cadetNames';
 
 describe('validateNickname', () => {
   it.each(['Luna', 'Mo', 'Star Girl', "O'Neil", 'Mary-Jane', 'Kim7', 'A'.repeat(16), '  Zed   Zed  '])('accepts %j', (n) => {
@@ -41,10 +41,24 @@ describe('validateNickname', () => {
   });
 });
 
+describe('student ID bounds', () => {
+  it('accepts 5 to 8 digits only', () => {
+    expect([STUDENT_ID_MIN, STUDENT_ID_MAX]).toEqual([5, 8]);
+    expect(['1234', '12345', '12345678', '123456789'].map(isValidStudentId)).toEqual([false, true, true, false]);
+    expect(isValidStudentId('1234a')).toBe(false);
+    expect(isValidStudentId(12345)).toBe(false);
+  });
+  it('the error asks for a student ID and never says secret number', () => {
+    const e = validateSecret('1234', '1234').error;
+    expect(e).toMatch(/student ID/);
+    expect(e).not.toMatch(/secret number/i);
+  });
+});
 describe('validateSecret', () => {
-  it('needs exactly 5 digits, entered twice the same', () => {
+  it('needs 5 to 8 digits, entered twice the same', () => {
     expect(validateSecret('12345', '12345')).toEqual({ ok: true });
-    for (const bad of ['1234', '123456', 'abcde', '12 45', '', null, undefined, 12345.5]) expect(validateSecret(bad, bad).ok).toBe(false);
+    for (const id of ['12345', '1234567', '98765432']) expect(validateSecret(id, id)).toEqual({ ok: true });
+    for (const bad of ['1234', '123456789', 'abcde', '12 45', '', null, undefined, 12345.5]) expect(validateSecret(bad, bad).ok).toBe(false);
     expect(validateSecret('12345', '12346').ok).toBe(false);
   });
   it('error messages never contain the digits', () => {

@@ -8,7 +8,7 @@ import SecretInput from '../components/ui/SecretInput';
 const read = (f) => readFileSync(path.join(__dirname, '..', f), 'utf8');
 const props = { name: '', setName() {}, pin: '', setPin() {}, error: '', loading: false, onSubmit() {}, onBack() {} };
 
-describe('secret number fields must not look like credentials (password managers would offer to save the student ID)', () => {
+describe('student ID fields must not look like credentials (password managers would offer to save the student ID)', () => {
   it('sign-in form: no password input, no username/password autocomplete tokens, opt-out attributes on both fields', () => {
     const html = renderToStaticMarkup(<CredentialsForm {...props} />);
     expect(html).not.toMatch(/type="password"/);
@@ -33,10 +33,10 @@ describe('secret number fields must not look like credentials (password managers
     expect(html).toMatch(/class="secret-mask /);
     expect(html).not.toMatch(/type="password"/);
     let got = null;
-    SecretInput({ id: 'x', value: '', onChange: (v) => { got = v; } }).props.children[0].props.onChange({ target: { value: '12a3456' } });
+    SecretInput({ id: 'x', value: '', onChange: (v) => { got = v; } }).props.children[0].props.onChange({ target: { value: '12a3456789' } });
     expect(html).toMatch(/aria-describedby="x-hint"/);
     expect(html).toMatch(/<span id="x-hint" class="sr-only">Secure entry/);
-    expect(got).toBe('12345');
+    expect(got).toBe('12345678');
   });
 
   it('the save form uses SecretInput (never type=password) and the mask rule exists', () => {

@@ -74,8 +74,8 @@ Use a shell where `DATABASE_URL` points at prod, from a checkout of the deploy c
 7. **Set the env vars** in the Vercel production environment: `CRON_SECRET` (required), `GUEST_SEATS` / `GUEST_MIN_IDLE_MINUTES` only if not using the defaults, and check `NEXTAUTH_SECRET` / `NEXTAUTH_URL` exist. Optionally add a Vercel Firewall rate-limit rule on the auth and guest-claim routes (the app has a best-effort in-memory limit per instance, see below).
 8. **Merge `ui-overhaul` into `main`.** This deploys. Watch the build.
 9. **Smoke test:**
-   - Braylee + PIN logs in and shows the merged history; `/api/auth/me` returns `isGuest:false`.
-   - A wrong PIN returns 401; the 5th wrong PIN returns 429 with a "short break" message; the right PIN is refused while resting.
+   - Braylee + student ID logs in and shows the merged history; `/api/auth/me` returns `isGuest:false`.
+   - A wrong student ID returns 401; the 5th wrong one returns 429 with a "short break" message; the right one is refused while resting.
    - "Play as Guest" gives Cadet 001.
    - `/api/spelling/words` returns `"source":"db"`.
    - `POST /api/auth/register` -> 404; `/parent` -> 404; `POST /api/problems/1/score` and `/mastered` -> 404.
@@ -92,7 +92,7 @@ The runtime fails safe instead of crash-looping. A Prisma "column/table does not
 
 ## Login lockout and guest seats (runtime behaviour)
 
-- Login lockout (`lib/pinAuth.js`): each attempt first claims a slot with ONE conditional `UPDATE` (counter + 1, lock applied, lock checked, all in the same statement), so a parallel burst cannot test more than 5 PINs. 5-9 wrong in a row = 1 minute rest, 10-14 = 5 minutes, 15-19 = 30 minutes, 20-24 = 2 hours, 25+ = 24 hours (applied again on every further wrong try); a correct PIN resets it. Unknown name, wrong secret and a resting account all get the same 401 and message ("That didn't work. Check your name and number, or try again in a little while.") and the same bcrypt work, so a nickname cannot be probed through the login form. Uses the existing `failedLoginAttempts` / `lockedUntil` columns only, no migration.
+- Login lockout (`lib/pinAuth.js`): each attempt first claims a slot with ONE conditional `UPDATE` (counter + 1, lock applied, lock checked, all in the same statement), so a parallel burst cannot test more than 5 IDs. 5-9 wrong in a row = 1 minute rest, 10-14 = 5 minutes, 15-19 = 30 minutes, 20-24 = 2 hours, 25+ = 24 hours (applied again on every further wrong try); a correct student ID resets it. Unknown name, wrong secret and a resting account all get the same 401 and message ("That didn't work. Check your name and student ID, or try again in a little while.") and the same bcrypt work, so a nickname cannot be probed through the login form. Uses the existing `failedLoginAttempts` / `lockedUntil` columns only, no migration.
 - Per-IP limits are in-memory (bounded to 5000 keys, oldest evicted) and PER SERVER INSTANCE (serverless instances do not share them), so they are best effort: login 30 attempts / 10 min / IP, new guest seat 10 / 10 min / IP. For a hard limit add a Vercel Firewall rule.
 - Guest seats (`lib/guests.js`): free seats first. A taken seat is reused only if idle for at least `GUEST_MIN_IDLE_MINUTES` (default 15); otherwise `/api/guest/claim` answers 503 "All seats are busy, try again in a few minutes" and the login screen shows it. Reuse and purge are compare-and-set on the seat's token hash and `lastActiveAt`, so two claims cannot take one seat.
 
@@ -164,6 +164,10 @@ New hashes are `bcrypt(HMAC-SHA256(pepper, secret))`. The pepper is derived from
 
 **Rehash rule:** the legacy-to-peppered rewrite on sign-in only happens when `VERCEL_ENV=production` (or `PIN_REHASH=1`, for local testing). Preview deployments and laptops only verify, so pointing a non-production process (with a different `NEXTAUTH_SECRET`) at the prod DB can never rewrite Braylee's hash under the wrong key. New saves are peppered in every environment, since each has its own DB. After deploy, Braylee's hash upgrades on her first production sign-in.
 
-**Rotating `NEXTAUTH_SECRET` invalidates every peppered PIN and student ID** (Braylee and all saved cadets) along with all sessions. Braylee's PIN would have to be reset by hand (a plain `bcrypt` hash of the PIN in `User.pin` is accepted and re-peppered on sign-in); saved cadets would have to save again. Do not rotate it casually.
+**Rotating `NEXTAUTH_SECRET` invalidates every peppered student ID** (Braylee and all saved cadets) along with all sessions. Braylee's student ID would have to be reset by hand (a plain `bcrypt` hash of it in `User.pin` is accepted and re-peppered on sign-in); saved cadets would have to save again. Do not rotate it casually.
 
 The password-manager opt-out for these fields (text input with a CSS mask, `autocomplete="off"`, `data-1p-ignore` etc.) is deliberate: do not turn them into `type="password"` fields.
+
+### Student ID rule (5-8 digits)
+
+Sign-in and "Save my cadet" both take a student ID of 5 to 8 digits (`STUDENT_ID_MIN` / `STUDENT_ID_MAX` in `lib/cadetNames.js`). 4-digit values are no longer accepted, so Braylee's old 4-digit PIN stops working the moment this deploys. Set her account to her student ID right after deploying: hash it with `hashPin` from `lib/pinAuth.js` (or store the plain value; it is hashed on her next sign-in in production) into her `User.pin` and reset `failedLoginAttempts` / `lockedUntil`. Never put the real ID in the repo, a ticket or a commit.

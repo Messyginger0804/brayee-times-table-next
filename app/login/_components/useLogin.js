@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import { isValidStudentId, STUDENT_ID_MIN, STUDENT_ID_MAX } from '../../../lib/cadetNames';
 import { confirmSession } from '../../../lib/confirmSession';
 import { queueCadetWelcome } from '../../../lib/cadetWelcome';
 
@@ -10,13 +11,13 @@ const SESSION_FAIL = 'Almost there, but the launch hiccuped. Please tap again!';
 const GUEST_FAIL = 'Could not start a guest game. Try again!';
 
 function validateLogin(name, pin) {
-  if (!String(name).trim()) return 'Type your cadet name first.';
-  if (!/^\d{4,5}$/.test(String(pin))) return 'Your secret number needs 4 or 5 numbers.';
+  if (!String(name).trim()) return 'Type your name first.';
+  if (!isValidStudentId(String(pin))) return `Your student ID needs ${STUDENT_ID_MIN} to ${STUDENT_ID_MAX} numbers.`;
   return '';
 }
 
 function loginFailMessage(res) {
-  return res?.error && res.error !== 'CredentialsSignin' ? res.error : "That didn't work. Check your name and number, or try again in a little while.";
+  return res?.error && res.error !== 'CredentialsSignin' ? res.error : "That didn't work. Check your name and student ID, or try again in a little while.";
 }
 
 export default function useLogin() {
