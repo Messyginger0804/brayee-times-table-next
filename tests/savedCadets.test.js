@@ -85,23 +85,33 @@ describe('config', () => {
 });
 
 describe('saveCadet', () => {
+  it.each(['12345', '1234567', 'abcdef', '12 456', '123-456', '１２３４５６', '١٢٣٤٥٦', '', 123456])('rejects student ID %j with code secret before touching the database', async (bad) => {
+    const seat = seedGuest(db, 2);
+    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', bad, NOW)).rejects.toMatchObject({ code: 'secret', message: 'Your student ID is 6 numbers.' });
+    expect(db.users.find((x) => x.id === seat.id).isGuest).toBe(true);
+  });
+  it('accepts a leading-zero student ID', async () => {
+    const seat = seedGuest(db, 2);
+    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '012345', NOW)).resolves.toEqual({ name: 'Luna' });
+  });
+
   it('converts the seat in place: keeps the id and progress, hashes the ID, leaves the guest pool', async () => {
     const seat = seedGuest(db, 2, { level: 3, grade: 4, failedLoginAttempts: 2 });
     db.rows.mathSkillProgress.push({ userId: seat.id, skillId: 'x' }); db.rows.attempt.push({ userId: seat.id });
-    const r = await saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '24680', NOW);
+    const r = await saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '246801', NOW);
     expect(r).toEqual({ name: 'Luna' });
     const u = db.users.find((x) => x.id === seat.id);
     expect(u).toMatchObject({ name: 'Luna', isGuest: false, guestSeat: null, guestTokenHash: null, savedCadet: true, level: 3, grade: 4, failedLoginAttempts: 0 });
     expect(u.savedAt).toEqual(NOW); expect(u.lastActiveAt).toEqual(NOW);
-    expect(u.pin).not.toContain('24680');
+    expect(u.pin).not.toContain('246801');
     expect(u.pin).toMatch(/^\$2[aby]\$/);
-    expect(await bcrypt.compare('24680', u.pin)).toBe(false); // peppered: a plain bcrypt of the ID does not match
+    expect(await bcrypt.compare('246801', u.pin)).toBe(false); // peppered: a plain bcrypt of the ID does not match
     expect(db.rows.mathSkillProgress).toHaveLength(1); expect(db.rows.attempt).toHaveLength(1); // progress kept
   });
 
   it('refills the guest pool back to GUEST_SEATS with an empty, free seat', async () => {
     const s1 = seedGuest(db, 1); seedGuest(db, 2, { guestTokenHash: hashToken('other') }); seedGuest(db, 3, { guestTokenHash: null });
-    await saveCadet(db, { id: s1.id, gk: TOKEN }, 'Luna', '24680', NOW);
+    await saveCadet(db, { id: s1.id, gk: TOKEN }, 'Luna', '246801', NOW);
     const pool = db.users.filter((u) => u.isGuest);
     expect(pool).toHaveLength(guestSeatCount());
     expect(pool.map((u) => u.guestSeat).sort()).toEqual([1, 2, 3]);
@@ -113,7 +123,7 @@ describe('saveCadet', () => {
     process.env.SAVED_CADETS_MAX = '2';
     db.add({ name: 'Braylee', pin: 'H' }); seedSaved(db, 'A1', NOW); seedSaved(db, 'B2', NOW);
     const seat = seedGuest(db);
-    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '24680', NOW)).rejects.toMatchObject({ code: 'full', message: expect.stringContaining('All 2 saved cadet spots are taken') });
+    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '246801', NOW)).rejects.toMatchObject({ code: 'full', message: expect.stringContaining('All 2 saved cadet spots are taken') });
     expect(db.users.find((u) => u.id === seat.id).isGuest).toBe(true); // untouched
   });
 
@@ -121,47 +131,47 @@ describe('saveCadet', () => {
     process.env.SAVED_CADETS_MAX = '1';
     db.add({ name: 'Braylee', pin: 'H' });
     const seat = seedGuest(db);
-    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '24680', NOW)).resolves.toEqual({ name: 'Luna' });
+    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '246801', NOW)).resolves.toEqual({ name: 'Luna' });
   });
 
   it('a long-idle saved cadet frees their spot first', async () => {
     process.env.SAVED_CADETS_MAX = '1';
     seedSaved(db, 'Old', daysAgo(40));
     const seat = seedGuest(db);
-    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '24680', NOW)).resolves.toEqual({ name: 'Luna' });
+    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '246801', NOW)).resolves.toEqual({ name: 'Luna' });
     expect(db.users.some((u) => u.name === 'Old')).toBe(false);
   });
 
   it('names are unique case-insensitively', async () => {
     seedSaved(db, 'Luna', NOW);
     const seat = seedGuest(db);
-    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'LUNA', '24680', NOW)).rejects.toMatchObject({ code: 'taken' });
-    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'luna', '24680', NOW)).rejects.toBeInstanceOf(SavedCadetError);
+    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'LUNA', '246801', NOW)).rejects.toMatchObject({ code: 'taken' });
+    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'luna', '246801', NOW)).rejects.toBeInstanceOf(SavedCadetError);
   });
 
   it('a seat that lost its token (wiped, taken over, already saved) cannot be saved', async () => {
     const seat = seedGuest(db, 1, { guestTokenHash: hashToken('rotated') });
-    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '24680', NOW)).rejects.toMatchObject({ code: 'seat' });
+    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '246801', NOW)).rejects.toMatchObject({ code: 'seat' });
     expect(db.users.find((u) => u.id === seat.id).savedCadet).toBe(false);
   });
 
   it('a real account (no seat key) cannot be saved', async () => {
     const braylee = db.add({ name: 'Braylee', pin: 'H' });
-    await expect(saveCadet(db, { id: braylee.id, gk: null }, 'Luna', '24680', NOW)).rejects.toMatchObject({ code: 'seat' });
+    await expect(saveCadet(db, { id: braylee.id, gk: null }, 'Luna', '246801', NOW)).rejects.toMatchObject({ code: 'seat' });
   });
 
   it('maps a unique-constraint race to "taken"', async () => {
     const seat = seedGuest(db);
     db.user.updateMany = async () => { throw Object.assign(new Error('dup'), { code: 'P2002' }); };
-    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '24680', NOW)).rejects.toMatchObject({ code: 'taken' });
+    await expect(saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '246801', NOW)).rejects.toMatchObject({ code: 'taken' });
   });
 
   it('never logs the student ID', async () => {
     const spies = ['log', 'error', 'warn', 'info', 'debug'].map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
     const seat = seedGuest(db);
-    await saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '24680', NOW);
-    await saveCadet(db, { id: seat.id, gk: TOKEN }, 'Nova', '24680', NOW).catch(() => {});
-    expect(JSON.stringify(spies.map((s) => s.mock.calls))).not.toContain('24680');
+    await saveCadet(db, { id: seat.id, gk: TOKEN }, 'Luna', '246801', NOW);
+    await saveCadet(db, { id: seat.id, gk: TOKEN }, 'Nova', '246801', NOW).catch(() => {});
+    expect(JSON.stringify(spies.map((s) => s.mock.calls))).not.toContain('246801');
   });
 });
 

@@ -13,7 +13,7 @@ import { SavedCadetError, saveCadet } from '../../lib/savedCadets';
 import { _resetRateLimits } from '../../lib/rateLimit';
 import { POST } from '../../app/api/cadets/save/route';
 
-const SECRET = '24680';
+const SECRET = '246801';
 const body = (o = {}) => ({ name: 'Luna', secret: SECRET, confirm: SECRET, ...o });
 let spies;
 beforeEach(() => {
@@ -37,7 +37,7 @@ describe('POST /api/cadets/save', () => {
 
   it('the student ID is never in a response, header or log - success or any failure', async () => {
     const outs = [await POST(jsonReq(body()))];
-    outs.push(await POST(jsonReq(body({ confirm: '99999' }))));
+    outs.push(await POST(jsonReq(body({ confirm: '999999' }))));
     outs.push(await POST(jsonReq(body({ secret: '123', confirm: '123' }))));
     outs.push(await POST(jsonReq(body({ name: 'fuck' }))));
     saveCadet.mockRejectedValueOnce(new SavedCadetError('taken', 'Someone already has that name. Pick another one!'));
@@ -47,7 +47,7 @@ describe('POST /api/cadets/save', () => {
     for (const r of outs) {
       const text = await seen(r);
       expect(text).not.toContain(SECRET);
-      expect(text).not.toContain('99999');
+      expect(text).not.toContain('999999');
     }
   });
 
@@ -60,7 +60,8 @@ describe('POST /api/cadets/save', () => {
   });
 
   it('400 for a bad name or student ID, without touching the database', async () => {
-    for (const b of [body({ name: 'B' }), body({ name: 'Braylee' }), body({ secret: 'abcde', confirm: 'abcde' }), body({ confirm: '11111' }), {}]) {
+    for (const b of [body({ name: 'B' }), body({ name: 'Braylee' }), ...['12345', '1234567', 'abcdef', '12 456', '123-456', ' 123456', '１２３４５６', '١٢٣٤٥٦', '', 123456].map((v) => body({ secret: v, confirm: v })), body({ confirm: '111111' }), {}]) {
+      _resetRateLimits();
       const res = await POST(jsonReq(b));
       expect(res.status).toBe(400);
     }
