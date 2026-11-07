@@ -34,7 +34,7 @@ function Dialog({ open, onClose, labelledBy, children }) {
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-space-950/70 p-4 pb-safe sm:items-center"
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-space-950/70 p-4 pb-safe sm:items-center"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={reduced ? { duration: 0 } : undefined}
           onClick={onClose}
         >
