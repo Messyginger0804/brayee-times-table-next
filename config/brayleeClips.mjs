@@ -12,8 +12,8 @@
 // {name} lines as name-free versions. tests/lib/brayleeClips.test.js fails when config/brayleeLines.js drifts from this list.
 export const STREAK_CLIP_COUNTS = [3, 5, 10, 20, 30];
 
-export const CLIP_DIR = 'public/audio/braylee';
-export const CLIP_URL_BASE = '/audio/braylee';
+const CLIP_DIR = 'public/audio/braylee';
+const CLIP_URL_BASE = '/audio/braylee';
 
 const CLIP_TEXTS = [
   ["lets-play", "Let's play!"],
