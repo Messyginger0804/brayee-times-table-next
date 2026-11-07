@@ -52,7 +52,13 @@ describe('GET /api/avatar', () => {
     avatarResponse.mockResolvedValue(ok);
     expect(await avatarGET(req('?size=160&name=Other'))).toBe(ok);
     expect(avatarResponse).toHaveBeenCalledWith({ 160: 's.png' }, '160', 'private');
-    expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: 7 }, select: { name: true } });
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: 7 }, select: { name: true, savedCadet: true } });
+  });
+  it('404 for a saved cadet even if their chosen nickname is in the photo map', async () => {
+    prisma.user.findUnique.mockResolvedValue({ name: 'Bray', savedCadet: true });
+    readAvatarMap.mockResolvedValue({ Bray: 'o.png' });
+    expect((await avatarGET(req())).status).toBe(404);
+    expect(avatarResponse).not.toHaveBeenCalled();
   });
 });
 

@@ -1,17 +1,22 @@
 "use client";
 import Button from '../../../components/ui/Button';
+import SecretInput from '../../../components/ui/SecretInput';
 import ShakeError from './ShakeError';
 
 const fieldCls = 'w-full min-h-[3.25rem] rounded-chunk border-2 border-white/20 bg-space-900/80 px-4 text-lead text-ink placeholder:text-ink-dim/80 focus:border-neon-cyan focus:outline-none focus:ring-2 focus:ring-neon-cyan/60';
 
-export default function CredentialsForm({ pin, setPin, error, loading, onSubmit, onBack }) {
+export default function CredentialsForm({ name, setName, pin, setPin, error, loading, onSubmit, onBack }) {
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-col gap-4" autoComplete="off" data-form-type="other" noValidate>
       <div>
-        <label htmlFor="pin" className="mb-1 block text-body font-bold">Braylee&apos;s 4-digit PIN</label>
-        <input id="pin" className={`${fieldCls} tracking-[0.5em]`} placeholder="••••" value={pin} maxLength={4}
-          inputMode="numeric" pattern="\d{4}" autoComplete="current-password" autoFocus
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} required />
+        <label htmlFor="cadet-name" className="mb-1 block text-body font-bold">Your cadet name</label>
+        <input id="cadet-name" name="cadet_nickname" type="text" className={fieldCls} value={name} maxLength={16} autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck={false}
+          data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" autoFocus onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div>
+        <label htmlFor="secret-number" className="mb-1 block text-body font-bold">Your secret number</label>
+        <SecretInput id="secret-number" name="secret_number" className={`${fieldCls} tracking-[0.5em]`} placeholder="•••••" value={pin} maxLength={5}
+          pattern="\d{4,5}" onChange={setPin} required />
       </div>
       <div aria-live="polite" className="min-h-[1.5rem]">
         <ShakeError error={error} />

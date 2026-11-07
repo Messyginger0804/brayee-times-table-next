@@ -18,10 +18,13 @@
  * Usage:  node scripts/cleanup-accounts.js                # dry run (default): does everything, then rolls back
  *         node scripts/cleanup-accounts.js --confirm      # writes (ONE transaction)
  *         add --i-have-a-backup to run against a non-localhost DATABASE_URL
+ *         saved cadets (User.savedCadet) count as "everyone else": the script REFUSES to run while any exist, even as a dry run,
+ *         unless --include-saved-cadets is passed (then they are deleted with all their data like any other non-Braylee user)
  * Idempotent: a second --confirm finds nothing left to merge or delete.
  */
 const { PrismaClient } = require('@prisma/client');
 const { groupBy, mergeProgress, mergeUserProblemRows } = require('./lib/accountMerge');
+const { savedCadetRefusal } = require('./lib/savedCadetGuard');
 
 const KEEP = 'Braylee';
 const MERGE = ['braylee', 'bray', 'Bray'];
@@ -29,6 +32,7 @@ const MERGE = ['braylee', 'bray', 'Bray'];
 const args = new Set(process.argv.slice(2));
 const CONFIRM = args.has('--confirm');
 const HAS_BACKUP = args.has('--i-have-a-backup');
+const INCLUDE_SAVED = args.has('--include-saved-cadets');
 
 class Rollback extends Error {}
 
@@ -182,6 +186,8 @@ async function main() {
 
   const prisma = new PrismaClient();
   try {
+    const refusal = savedCadetRefusal(await prisma.user.count({ where: { savedCadet: true } }), INCLUDE_SAVED);
+    if (refusal) { console.error(refusal); process.exitCode = 2; return; }
     await prisma.$transaction(async (tx) => {
       await run(tx, isMastered, (m) => console.log(m));
       if (!CONFIRM) throw new Rollback();

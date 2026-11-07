@@ -170,7 +170,7 @@ describe('POST /api/auth/login', () => {
     expect(res.headers.get('Retry-After')).toBeNull();
   });
   it('a 400 from verifyPin (malformed pin) is reported as 401', async () => {
-    verifyPin.mockResolvedValue({ ok: false, status: 400, error: 'Name and a 4-digit PIN required' });
+    verifyPin.mockResolvedValue({ ok: false, status: 400, error: 'Name and your secret number (4 or 5 digits) required' });
     expect((await loginPOST(jsonReq({ name: 'K', pin: 'abc' }))).status).toBe(401);
   });
   it('lockout -> 429 with Retry-After header and body', async () => {

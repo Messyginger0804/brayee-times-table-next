@@ -68,6 +68,10 @@ model User {
   guestSeat           Int?                @unique
   guestTokenHash      String?             @unique
   lastActiveAt        DateTime?
+  // Saved cadets (lib/savedCadets.js): a guest seat converted into a named account. `name` is the nickname, `pin` the bcrypt hash of the
+  // 5-digit student ID. Not a guest any more (isGuest false, no seat, no token). Wiped after SAVED_CADET_RETENTION_DAYS without lastActiveAt.
+  savedCadet          Boolean             @default(false)
+  savedAt             DateTime?
   mathProgress        MathSkillProgress[]
   mathAttempts        MathAttempt[]
   spellingAttempts    SpellingAttempt[]
