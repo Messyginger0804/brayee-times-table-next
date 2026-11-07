@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resetVoice } from '../../lib/voice';
-import { speakCheer, speakBigCheer, speakSpelling, stopCheers, setMuted, isMuted, resetCheerVoice, CHEER_GAP_MS, CHEER_SETTLE_MS, MUTE_KEY } from '../../lib/cheerVoice';
+import { speakCheer, speakBigCheer, speakSpelling, replayCheer, stopCheers, setMuted, isMuted, resetCheerVoice, CHEER_GAP_MS, CHEER_SETTLE_MS, MUTE_KEY } from '../../lib/cheerVoice';
 
 let synth;
 let spoken;
@@ -346,5 +346,66 @@ describe('stopCheers and spelling state', () => {
     finish();
     speakCheer('Great!'); flush();
     expect(spoken.map((u) => u.text)).toEqual(['Spell: cat', 'Spell: hat']);
+  });
+});
+
+describe('replayCheer (tap on the bubble)', () => {
+  let audios;
+  beforeEach(() => {
+    audios = [];
+    vi.stubGlobal('Audio', function FakeAudio(url) {
+      this.url = url; this.paused = true; this.ended = false;
+      this.pause = vi.fn(() => { this.paused = true; });
+      this.play = vi.fn(() => { this.paused = false; return Promise.resolve(); });
+      audios.push(this);
+    });
+  });
+  it('plays her clip immediately, with no settle delay', () => {
+    replayCheer('Great job! 🚀');
+    expect(audios).toHaveLength(1);
+    expect(audios[0].url).toBe('/audio/braylee/great-job.mp3');
+  });
+  it('restarts a clip that is already playing, even inside the throttle gap', () => {
+    speakCheer('Great job!'); flush();
+    replayCheer('Great job!');
+    expect(audios[0].pause).toHaveBeenCalled();
+    expect(audios).toHaveLength(2);
+    expect(audios[1].play).toHaveBeenCalled();
+  });
+  it('cancels a pending cheer so it does not fire after the replay', () => {
+    speakCheer('Great job!');
+    replayCheer('Great job!');
+    flush();
+    expect(audios).toHaveLength(1);
+  });
+  it('does nothing while muted', () => {
+    setMuted(true);
+    replayCheer('Great job!');
+    replayCheer('7 in a row!');
+    expect(audios).toHaveLength(0);
+    expect(synth.speak).not.toHaveBeenCalled();
+  });
+  it('is ignored while spelling speech is playing', () => {
+    speakSpelling('cat');
+    replayCheer('Great job!');
+    replayCheer('7 in a row!');
+    expect(audios).toHaveLength(0);
+    expect(spoken.map((u) => u.text)).toEqual(['cat']);
+  });
+  it('speaks lines without a clip, cutting off speech already playing', () => {
+    replayCheer('7 in a row!');
+    replayCheer('7 in a row!');
+    expect(spoken.map((u) => u.text)).toEqual(['7 in a row!', '7 in a row!']);
+    expect(synth.cancel).toHaveBeenCalled();
+  });
+  it('falls back to speech when the clip errors', () => {
+    replayCheer('Great job!');
+    audios[0].onerror();
+    expect(spoken.map((u) => u.text)).toEqual(['Great job!']);
+  });
+  it('ignores empty text', () => {
+    replayCheer('');
+    expect(audios).toHaveLength(0);
+    expect(synth.speak).not.toHaveBeenCalled();
   });
 });

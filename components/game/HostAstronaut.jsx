@@ -2,13 +2,18 @@
 import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import Astronaut, { POSE_MS } from '../space/Astronaut';
+import ReplayBubble from './ReplayBubble';
 
 const HOST_ALT = "Braylee, the app's host";
 export const HOST_WELCOME = 'Hey! Welcome to my learning app! I use this to be sooo smart! 🚀✨';
 export const HOST_LINES = ['Pick a mission, Cadet!', "You're gonna be sooo smart too!", 'Ready when you are, Cadet! 🚀'];
 
-/** Speech bubble in a polite live region. `tail`: where the pointer sits ('top' | 'left'). */
-export function SpeechBubble({ text, tail = 'top', className = '' }) {
+/**
+ * Speech bubble in a polite live region. `tail`: where the pointer sits ('top' | 'left').
+ * `replay`: the line is spoken aloud, so the bubble is a button that says it again (the text is then announced
+ * from a screen-reader-only status region and the button carries its own label).
+ */
+export function SpeechBubble({ text, tail = 'top', className = '', replay = false }) {
   const reduce = useReducedMotion();
   const TAILS = {
     left: '-left-[7px] top-1/2 -translate-y-1/2 border-b-2 border-l-2',
@@ -16,6 +21,25 @@ export function SpeechBubble({ text, tail = 'top', className = '' }) {
     none: 'hidden',
   };
   const tailCls = TAILS[tail] || TAILS.top;
+  if (replay) {
+    return (
+      <div className={className}>
+        <div aria-live="polite" role="status" className="sr-only">{text}</div>
+        {text ? (
+          <ReplayBubble
+            key={text}
+            text={text}
+            initial={reduce ? false : { opacity: 0, scale: 0.85, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 24 }}
+            className="relative w-full px-4 py-2.5 text-center leading-snug"
+          >
+            <span aria-hidden="true" className={`absolute h-3 w-3 rotate-45 border-neon-cyan bg-ink ${tailCls}`} />
+          </ReplayBubble>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div aria-live="polite" role="status" className={className}>
       {text ? (
