@@ -1,6 +1,7 @@
 "use client";
 /**
- * Braylee cheering: her face (Astronaut with the host photo) plus a speech bubble.
+ * Cheering astronaut in the PLAYER's own helmet (her photo only when Braylee is the player, the emoji for guests)
+ * plus a speech bubble. Never the host photo, so a screen shows at most one Braylee face.
  *
  * <BrayleeCheer moment pose size layout line speak className />
  *   moment  key of config/brayleeLines.js (session, correct, streak, levelUp, mastered, wrong, testPass, gameOver,
@@ -39,7 +40,7 @@ export default function BrayleeCheer({ moment = 'idle', n, name, pose = 'welcome
   return (
     <div className={`flex ${row ? 'flex-row items-center gap-3' : 'flex-col items-center gap-2'} ${className}`}>
       <div className="shrink-0">
-        <Astronaut host hostAlt="Braylee" pose={reduce ? 'idle' : pose} size={size} />
+        <Astronaut pose={reduce ? 'idle' : pose} size={size} />
       </div>
       <SpeechBubble text={text} tail={row ? 'left' : 'top'} className={row ? 'min-w-0 flex-1' : 'w-full max-w-[19rem]'} />
     </div>

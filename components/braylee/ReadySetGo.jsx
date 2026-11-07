@@ -101,7 +101,7 @@ export default function ReadySetGo({ onDone }) {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 160, damping: 16 }}
       >
-        <Astronaut pose={step.pose} size={160} host />
+        <Astronaut pose={step.pose} size={160} />
       </motion.div>
       <Countdown step={step} line={line} reduced={reduced} />
       <button

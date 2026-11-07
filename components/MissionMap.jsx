@@ -77,13 +77,16 @@ function Planet({ s, idx, onPick }) {
   const locked = s.state === 'locked';
   const frac = progressFraction(s);
   const name = shortName(s.name);
+  // A planet that unmounts while hovered (tap -> route) never gets pointerleave: release the hover so the canvas drops back to idle fps
+  useEffect(() => () => sceneFx.unhover(s.id), [s.id]);
   return (
     <li className="relative z-10 flex justify-center" style={{ direction: 'ltr' }}>
       <button
         type="button"
         onClick={() => pick(s, onPick)}
         onPointerEnter={() => sceneFx.hover(s.id)}
-        onPointerLeave={() => sceneFx.hover(null)}
+        onPointerLeave={() => sceneFx.unhover(s.id)}
+        onPointerCancel={() => sceneFx.unhover(s.id)}
         aria-disabled={locked}
         aria-label={`${name}. ${progressText(s)}${s.state === 'current' ? '. Next mission' : ''}`}
         className="flex min-h-[7.25rem] w-full flex-col items-center gap-1 rounded-chunk px-1 py-1 text-center"

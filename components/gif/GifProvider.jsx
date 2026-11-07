@@ -4,12 +4,17 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { GIFS, GIF_SETTINGS, GIF_MESSAGES } from '../../config/gifs';
 import { gameFx } from '../../lib/gameFx';
+import { director } from '../../lib/momentDirector';
 import GifImage from './GifImage';
 import ReadySetGo from '../braylee/ReadySetGo';
 import { useIntroPlayer } from '../braylee/useIntroPlayer';
 
 const FeedbackContext = createContext(null);
 const SlotContext = createContext(() => {});
+
+// Which director rank each GIF card competes at: a streak or record card outranks the ordinary ones
+const GIF_KIND = { levelUp: 'streak', streak: 'streak', celebrate: 'celebrate', tryAgain: 'celebrate', welcome: 'celebrate' };
+const PENDING_MODAL_MS = 2000;
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -36,6 +41,8 @@ export function GifProvider({ children }) {
   const recent = useRef({});         // category -> last shown id (avoid repeats)
   const lastShownAt = useRef(0);
   const timer = useRef(null);
+  const release = useRef(null);     // gives the director's slot back when the card goes away
+  const pendingModal = useRef(null);
 
   const choose = useCallback((cat) => {
     const list = GIFS[cat] || [];
@@ -52,25 +59,34 @@ export function GifProvider({ children }) {
 
   const dismiss = useCallback(() => {
     clearTimeout(timer.current);
+    release.current?.();
+    release.current = null;
     setActive(null);
   }, []);
 
   const show = useCallback((cat, { n } = {}) => {
     const gif = queue.current[cat] || choose(cat);
     if (!gif) return;
+    // One big moment at a time: a modal (or a higher-ranked card) holding the stage drops this card, no backlog
+    const mine = director.claim(GIF_KIND[cat], () => {
+      clearTimeout(timer.current);
+      release.current = null;
+      setActive(null);
+    });
+    if (!mine) return;
+    release.current = mine;
     queue.current[cat] = null;
     recent.current[cat] = gif.id;
     lastShownAt.current = Date.now();
     const message = pick(GIF_MESSAGES[cat]).replace('{n}', String(n ?? ''));
-    gameFx.setGifMessage(message);
     setActive({ key: Date.now(), cat, gif, message });
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => { setActive(null); gameFx.setGifMessage(''); }, GIF_SETTINGS.dismissMs);
+    timer.current = setTimeout(dismiss, GIF_SETTINGS.dismissMs);
     // get the following one ready in the background
     setTimeout(() => preload(cat), 600);
-  }, [choose, preload]);
+  }, [choose, preload, dismiss]);
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => () => { clearTimeout(timer.current); clearTimeout(pendingModal.current); }, []);
 
   const { introOn, finishIntro, playIntro } = useIntroPlayer();
 
@@ -127,7 +143,19 @@ export function GifProvider({ children }) {
         gameFx.wrong(moment);
         return 'tryAgain';
       },
-      levelUp() { show('levelUp'); gameFx.emit('levelUp'); },
+      /**
+       * Level up. With `modal: true` the caller is about to open the level-up/mastery modal: reserve the stage now
+       * (no GIF card, no astronaut bubble, not even for a frame) and let the modal take it over; the confetti still plays.
+       */
+      levelUp({ modal = false } = {}) {
+        if (modal) {
+          dismiss();
+          const hold = director.claim('modal');
+          clearTimeout(pendingModal.current);
+          pendingModal.current = setTimeout(() => hold?.(), PENDING_MODAL_MS);
+        } else show('levelUp');
+        gameFx.emit('levelUp');
+      },
       preload,
       dismiss,
     };
