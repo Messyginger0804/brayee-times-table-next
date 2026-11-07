@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyPin } from '../../../../lib/pinAuth';
 import { expireLegacyDeviceCookie } from '../../../../lib/legacyCookies';
 import { clientIp } from '../../../../lib/rateLimit';
+import { currentUserImage } from '../../../../lib/userImage';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,5 +18,5 @@ export async function POST(req) {
     return NextResponse.json({ error: r.error, retryAfter: r.retryAfter, maintenance: r.maintenance }, { status: r.status === 400 ? 401 : r.status, headers });
   }
   const user = r.user;
-  return expireLegacyDeviceCookie(NextResponse.json({ id: user.id, name: user.name, level: user.level, image: user.image }));
+  return expireLegacyDeviceCookie(NextResponse.json({ id: user.id, name: user.name, level: user.level, image: currentUserImage(user.image) }));
 }

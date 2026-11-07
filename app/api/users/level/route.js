@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import { guestSafe } from '../../../../lib/guestWrite';
 import { requireActor } from '../../_utils';
+import { currentUserImage } from '../../../../lib/userImage';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,7 @@ export async function POST(req) {
     const w = await guestSafe(actor, (tx) => tx.user.update({ where: { id: userId }, data: { level: next } }));
     if (w.lost) return w.lost;
     const updated = w.value;
-    return NextResponse.json({ id: updated.id, name: updated.name, level: updated.level, image: updated.image });
+    return NextResponse.json({ id: updated.id, name: updated.name, level: updated.level, image: currentUserImage(updated.image) });
   } catch (e) {
     return NextResponse.json({ error: 'Failed to update level' }, { status: 500 });
   }

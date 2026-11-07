@@ -2,11 +2,13 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useScenePopup } from '../../lib/sceneFx';
+import { useMomentClaim } from '../../lib/momentDirector';
 
 /** Accessible dialog: focus moves in, Esc closes, backdrop tap closes. */
 export default function Modal({ open, onClose, title, children, actions }) {
   const ref = useRef(null);
   useScenePopup(open);
+  useMomentClaim('modal', open);
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement;

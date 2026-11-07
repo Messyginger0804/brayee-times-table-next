@@ -5,6 +5,7 @@ import Astronaut from './space/Astronaut';
 import Button from './ui/Button';
 import { triggerFireworks } from '../lib/fireworks';
 import { useScenePopup } from '../lib/sceneFx';
+import { useMomentClaim } from '../lib/momentDirector';
 import { cadetWelcomeTitle, takeCadetWelcome } from '../lib/cadetWelcome';
 
 const SUBTEXT = "That's your cadet number on this device. Come back on this device anytime to keep your progress.";
@@ -24,6 +25,7 @@ export default function CadetWelcome({ welcome, onClose: close }) {
   const reduce = useReducedMotion();
   const ref = useRef(null);
   useScenePopup(!!welcome);
+  useMomentClaim('modal', !!welcome);
   const closeRef = useRef(close);
   closeRef.current = close;
 
@@ -60,7 +62,7 @@ export default function CadetWelcome({ welcome, onClose: close }) {
             transition={{ type: 'spring', stiffness: 340, damping: 26 }}
             className="glass flex max-h-[calc(100dvh-2rem)] w-full max-w-sm flex-col items-center gap-3 overflow-y-auto rounded-bubble bg-space-800/95 p-6 text-center shadow-glow-violet"
           >
-            <Astronaut host hostAlt="Braylee, the app's host" pose={reduce ? 'idle' : 'welcome'} size={110} />
+            <Astronaut pose={reduce ? 'idle' : 'welcome'} size={110} />
             <h2 id="cadet-welcome-title" className="text-title text-neon-amber">{cadetWelcomeTitle(welcome)}</h2>
             <p id="cadet-welcome-desc" className="text-body text-ink-dim">{SUBTEXT}</p>
             <Button tone="lime" size="lg" onClick={close} className="mt-1 w-full">Let&apos;s go!</Button>
