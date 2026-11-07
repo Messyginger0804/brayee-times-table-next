@@ -134,3 +134,26 @@ Rehearsal (local `braylee` DB and `prodsim`, both already on `20260401000000_*`)
 Prod steps: see "Deploy steps, in this order" above. Rollback is app-only: the old build ignores the column; to undo the schema (only if needed) `ALTER TABLE "MathSkillProgress" DROP COLUMN "unlockedByParent";`.
 
 Behaviour notes shipped with it: `/api/math/attempt` now judges answers with `lib/curriculum` `checkAnswer` and mastery with `masteryStatus` (level advance after 10 problems that meet the skill's accuracy + time rule; skill mastery keeps the last-20 window on the last level); the skill list is `lib/curriculum/math/spec.json` only. (`/api/parent/unlocks` was later removed together with `/parent`.)
+
+## Saved cadets migration (`20260701000000_add_saved_cadets`)
+
+Purely additive: `User.savedCadet BOOLEAN NOT NULL DEFAULT false` and `User.savedAt TIMESTAMP(3)` (nullable). Constant default, so Postgres adds them as metadata only (no table rewrite); no existing column or row changes. SQL generated the same way as the others: `prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url <scratch db> --script`.
+
+New env vars (both optional): `SAVED_CADETS_MAX` (default 10, Braylee not counted) and `SAVED_CADET_RETENTION_DAYS` (default 30). No other deploy step.
+
+Rehearsal on a copy of `prodsim` (pristine prod restore): baseline resolved, `migrate deploy` applied everything pending including this migration, row counts of every pre-existing table identical (only the empty `MathAttempt` / `MathSkillProgress` tables from `20260401*` are new), `migrate diff --from-url ... --to-schema-datamodel` printed `-- This is an empty migration.`
+
+**Order for this PR: back up, then migrate prod, THEN merge.** Merging deploys; the new code reads `savedCadet`, so it must not run before the columns exist.
+1. Back up: `pg_dump -Fc "$DATABASE_URL" -f braylee-prod-$(date +%Y%m%d-%H%M).dump` (and check with `pg_restore -l`).
+2. Row counts before (step 2 of the main runbook).
+3. From a checkout of this PR's branch, with `DATABASE_URL` pointing at prod: `npx prisma migrate deploy`. It applies only what is pending (this migration, plus any earlier one prod does not have yet).
+4. `npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script` must print `-- This is an empty migration.`; row counts must match step 2.
+5. Merge the PR. Smoke test: Braylee signs in through "Are you a saved cadet? Sign in"; a guest can save a cadet and sign back in; `/api/cron/purge-guests` with the bearer answers `{"purged":N,"purgedSaved":0}`.
+
+If the code ships first: the same fail-safe as above applies. Sign-in, guest claim/status, `/api/auth/me`, the purge cron and `POST /api/cadets/save` answer the 503 maintenance message (`lib/dbErrors.js` lists `User.savedCadet` / `User.savedAt`). Run step 3 and the app recovers on its own.
+
+Rollback is app-only: the old build ignores both columns. To undo the schema (only if needed, and only after no saved cadet exists or their data is exported): `ALTER TABLE "User" DROP COLUMN "savedCadet", DROP COLUMN "savedAt";` and delete the matching `_prisma_migrations` row.
+
+Cleanup rule: `npm run db:cleanup-accounts` refuses to run (even as a dry run) while any `savedCadet` exists unless `--include-saved-cadets` is passed; with it, saved cadets are deleted like every other non-Braylee user. Do not pass it in production unless that is the intent.
+
+Behaviour: a saved cadet's progress stays on the seat's own row (`id` unchanged); the student ID is bcrypt-hashed into `User.pin` (the same atomic lockout as Braylee: 5 wrong = 1 min, 10 = 5 min, 15+ = 30 min). A saved cadet idle for more than `SAVED_CADET_RETENTION_DAYS` is deleted with all their data (attempts, tests, progress, row), lazily and by the daily cron; Braylee is never purged. Only a guest session can save; every API route is scoped to the signed-in caller's own id, so a saved cadet can read and write only their own data.

@@ -4,7 +4,7 @@ Math & spelling missions for space cadets.
 
 This is a Next.js port of the existing Vite + Express app in `../braylees_times_table`, preserving the same features:
 
-- Braylee logs in with a 4-digit PIN; everyone else plays as an anonymous guest seat (no sign-ups)
+- Braylee logs in with a 4-digit PIN; everyone else plays as an anonymous guest seat (no sign-ups). A guest can tap "Save my cadet" to keep their progress under a nickname + 5-digit student ID and sign in later ("Are you a saved cadet? Sign in")
 - Memorize, Practice, and Testing modes with playful UI
 - Per-user progress tracking and last-5 summaries
 - Prisma/Postgres data model identical to the original
@@ -14,7 +14,8 @@ Local development (local only; never point at prod)
 - Postgres + prod-build app: `docker compose up -d --build` (db on localhost:55436, app on http://localhost:3200; both `restart: unless-stopped`). Stop: `docker compose down` (add `-v` ONLY to wipe the DB volume).
 - Dev server: `nohup npm run dev:local > /tmp/dev3300.log 2>&1 &` -> http://localhost:3300 (loads `.env.docker`, DB at localhost:55436). Stop: `pkill -f "[n]ext dev -p 3300"`. Needs the `db` container up.
 - Config is `.env.docker` (gitignored; `env.example` lists the keys). `GUEST_SEATS` (default 5) sets the number of guest seats; `CRON_SECRET` guards `/api/cron/purge-guests` (`curl -H "Authorization: Bearer $CRON_SECRET" localhost:3300/api/cron/purge-guests`; 401 without it).
-- Logins: `Braylee` (PIN is in `prisma/seed-users.js`) or "Play as Guest" (cookie-based seat, wiped after 7 idle days). `/gifs` is dev-only (404 on :3200).
+- Logins: "Play as Guest" (cookie-based seat, wiped after 7 idle days) or "Are you a saved cadet? Sign in" with a name + secret number (Braylee uses it too; her PIN is in `prisma/seed-users.js`).
+- Saved cadets: `SAVED_CADETS_MAX` (default 10, Braylee not counted) and `SAVED_CADET_RETENTION_DAYS` (default 30 idle days, then the cadet and all their data are deleted; lazily and in the daily cron; Braylee never). The student ID is bcrypt-hashed into `User.pin` and never logged, returned or stored in plaintext. `npm run db:cleanup-accounts` refuses to run while saved cadets exist unless you pass `--include-saved-cadets` (then they are deleted too). `/gifs` is dev-only (404 on :3200).
 - Reset the local DB from the prod dump (`.backups/prod.dump`, real users' data: never commit or share). The dump is pg 18 format, so restore with a postgres:18 client:
 
       docker compose up -d db
@@ -57,7 +58,7 @@ Getting Started
 API Overview
 
 - `POST /api/auth/login` — { name, pin }
-- `POST /api/guest/claim` — { mode: 'resume' | 'new' }; `GET /api/guest/status`; `PUT /api/me/grade` — { grade }
+- `POST /api/guest/claim` — { mode: 'resume' | 'new' }; `GET /api/guest/status`; `POST /api/cadets/save` — { name, secret, confirm } (guest only; answers { ok, name }); `PUT /api/me/grade` — { grade }
 - `GET /api/auth/me` — current user
 - `POST /api/auth/logout`
 - `POST /api/users/level` — { level }

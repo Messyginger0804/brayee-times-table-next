@@ -12,6 +12,7 @@ vi.mock('../lib/prisma', () => ({
         const u = state.users.find((x) => x.id === where.id || x.name === where.name);
         return u ? { ...u } : null;
       },
+      findMany: async ({ where }) => state.users.filter((u) => where?.name?.equals && u.name.toLowerCase() === where.name.equals.toLowerCase()).map((u) => ({ ...u })), // also the (empty) saved-cadet purge scan
       update: async ({ where, data }) => {
         const u = state.users.find((x) => x.id === where.id);
         Object.assign(u, data);

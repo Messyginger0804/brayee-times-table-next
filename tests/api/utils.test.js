@@ -3,8 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('next-auth/next', () => ({ getServerSession: vi.fn() }));
 vi.mock('../../lib/auth', () => ({ authOptions: { marker: 'opts' } }));
 vi.mock('../../lib/guests', () => ({ validateGuestSession: vi.fn() }));
+vi.mock('../../lib/savedCadetPurge', () => ({ validateSavedSession: vi.fn() }));
 import { getServerSession } from 'next-auth/next';
 import { validateGuestSession } from '../../lib/guests';
+import { validateSavedSession } from '../../lib/savedCadetPurge';
 import { getUserId, requireUserId, requireProblemRequest } from '../../app/api/_utils';
 
 beforeEach(() => vi.clearAllMocks());
@@ -27,6 +29,16 @@ describe('getUserId', () => {
     getServerSession.mockResolvedValue({ user: { id: '42' } });
     expect(await getUserId()).toBe(42);
     expect(validateGuestSession).not.toHaveBeenCalled();
+  });
+
+  it('saved cadet session (sc): checked against the row; deleted or expired cadets lose access', async () => {
+    getServerSession.mockResolvedValue({ user: { id: '12', sc: true } });
+    validateSavedSession.mockResolvedValue(true);
+    expect(await getUserId()).toBe(12);
+    expect(validateSavedSession).toHaveBeenCalledWith(12);
+    expect(validateGuestSession).not.toHaveBeenCalled();
+    validateSavedSession.mockResolvedValue(false);
+    expect(await getUserId()).toBeNull();
   });
 
   it('guest session: valid seat key passes', async () => {

@@ -16,5 +16,5 @@ export async function GET() {
     // Guests are anonymous: name is just the seat number ("Cadet 003" in the UI), no photo, nothing personal.
     return NextResponse.json({ id: user.id, name: seatLabel(user.guestSeat), level: user.level, image: null, isGuest: true, seat: user.guestSeat, grade: user.grade });
   }
-  return NextResponse.json({ id: user.id, name: user.name, level: user.level, image: user.image, isGuest: false, grade: user.grade });
+  return NextResponse.json({ id: user.id, name: user.name, level: user.level, image: user.image, isGuest: false, isSaved: !!user.savedCadet, grade: user.grade });
 }

@@ -36,7 +36,7 @@ export default function LoginPage() {
         <GlassCard>
           <div className="flex flex-col gap-3">
             {showLogin ? (
-              <CredentialsForm pin={login.pin} setPin={login.setPin} error={error} loading={login.loading}
+              <CredentialsForm name={login.name} setName={login.setName} pin={login.pin} setPin={login.setPin} error={error} loading={login.loading}
                 onSubmit={login.handleLogin} onBack={login.closeLogin} />
             ) : (
               <GuestButtons resume={login.resume} loading={login.loading} onEnter={login.enterGuest} />
@@ -48,8 +48,8 @@ export default function LoginPage() {
             </div>
 
             {!showLogin && (
-              <Button tone="ghost" size="md" disabled={login.loading} onClick={login.openLogin} className="w-full !min-h-[48px]">
-                Are you Braylee?
+              <Button tone="ghost" size="md" disabled={login.loading} onClick={login.openLogin} className="w-full !min-h-[48px] !px-3 !text-body">
+                Are you a saved cadet? Sign in
               </Button>
             )}
           </div>

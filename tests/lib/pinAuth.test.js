@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import bcrypt from 'bcryptjs';
 
-vi.mock('../../lib/prisma', () => ({ prisma: { user: { findUnique: vi.fn(), update: vi.fn() }, $queryRaw: vi.fn() } }));
+vi.mock('../../lib/prisma', () => ({ prisma: { user: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() }, $queryRaw: vi.fn() } }));
+vi.mock('../../lib/savedCadetPurge', () => ({ purgeInactiveSaved: vi.fn(async () => 0) }));
 import { prisma } from '../../lib/prisma';
 import { verifyPin } from '../../lib/pinAuth';
+import { purgeInactiveSaved } from '../../lib/savedCadetPurge';
 
 const NOW = new Date('2026-06-01T12:00:00Z');
 const HASH = bcrypt.hashSync('1234', 4);
@@ -14,6 +16,7 @@ const inSeconds = (s) => new Date(NOW.getTime() + s * 1000);
 function store(initial) {
   const row = initial && { ...initial };
   prisma.user.findUnique.mockImplementation(async ({ where }) => (row && (row.name === where.name || row.id === where.id) ? { ...row } : null));
+  prisma.user.findMany.mockImplementation(async ({ where }) => (row && row.name.toLowerCase() === where.name.equals.toLowerCase() ? [{ ...row }] : []));
   prisma.user.update.mockImplementation(async ({ data }) => {
     for (const [k, v] of Object.entries(data)) row[k] = v && typeof v === 'object' && 'increment' in v ? row[k] + v.increment : v;
     return { ...row };
@@ -36,9 +39,9 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('verifyPin input validation', () => {
-  it.each([[null, '1234'], ['', '1234'], ['   ', '1234'], ['Kid', null], ['Kid', ''], ['Kid', '123'], ['Kid', '12345'], ['Kid', 'abcd']])(
+  it.each([[null, '1234'], ['', '1234'], ['   ', '1234'], ['Kid', null], ['Kid', ''], ['Kid', '123'], ['Kid', '123456'], ['Kid', 'abcd']])(
     'rejects name=%j pin=%j with 400 and never hits the store', async (n, p) => {
-      expect(await verifyPin(n, p)).toEqual({ ok: false, status: 400, error: 'Name and a 4-digit PIN required' });
+      expect(await verifyPin(n, p)).toEqual({ ok: false, status: 400, error: 'Name and your secret number (4 or 5 digits) required' });
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
     });
 
@@ -68,6 +71,44 @@ describe('verifyPin lookup', () => {
     expect(await verifyPin('Kid', '1234')).toMatchObject({ ok: false, status: 401 });
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('verifyPin saved cadets (5-digit student ID)', () => {
+  const saved = () => user({ name: 'Luna', savedCadet: true, pin: bcrypt.hashSync('24680', 4) });
+
+  it('signs in with a 5-digit secret, matches the name case-insensitively, and counts as activity', async () => {
+    store(saved());
+    const r = await verifyPin('luna', '24680');
+    expect(r.ok).toBe(true);
+    expect(prisma.user.update.mock.calls[0][0].data.lastActiveAt).toEqual(NOW);
+    expect(prisma.user.findMany).toHaveBeenCalledWith({ where: { name: { equals: 'luna', mode: 'insensitive' } }, take: 2 });
+  });
+
+  it('the exact name is found without the fallback; Braylee still signs in with her 4-digit PIN and gets no activity stamp', async () => {
+    store(user({ name: 'Braylee' }));
+    expect((await verifyPin('Braylee', '1234')).ok).toBe(true);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(prisma.user.update.mock.calls[0][0].data).not.toHaveProperty('lastActiveAt');
+  });
+
+  it('an ambiguous case-insensitive match signs nobody in', async () => {
+    store(saved());
+    prisma.user.findMany.mockResolvedValue([{ ...saved() }, { ...saved(), id: 8, name: 'LUNA' }]);
+    expect(await verifyPin('lUNA', '24680')).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it('wrong secret uses the same atomic lockout: 5th wrong = 1 minute rest, then even the right secret is refused', async () => {
+    store(saved());
+    for (let i = 0; i < 4; i++) expect(await verifyPin('Luna', '11111')).toMatchObject({ status: 401 });
+    expect(await verifyPin('Luna', '11111')).toMatchObject({ status: 429, retryAfter: 60, error: "Let's take a short break! Try again in 60 seconds." });
+    expect(await verifyPin('Luna', '24680')).toMatchObject({ ok: false, status: 429 });
+  });
+
+  it('purges idle saved cadets before looking the name up', async () => {
+    store(null);
+    await verifyPin('Luna', '24680');
+    expect(purgeInactiveSaved).toHaveBeenCalledWith(prisma);
   });
 });
 
