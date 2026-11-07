@@ -21,18 +21,18 @@ beforeEach(() => vi.clearAllMocks());
 describe('PIN provider authorize', () => {
   it('returns a minimal user (string id, no pin) on success', async () => {
     verifyPin.mockResolvedValue({ ok: true, user: { id: 5, name: 'K', image: 'i', pin: 'HASH', level: 2 } });
-    expect(await pinAuthorize({ name: 'K', pin: '123456' })).toEqual({ id: '5', name: 'K', image: 'i', sc: false });
+    expect(await pinAuthorize({ name: 'K', pin: '1234567' })).toEqual({ id: '5', name: 'K', image: 'i', sc: false });
     verifyPin.mockResolvedValue({ ok: true, user: { id: 6, name: 'Luna', image: null, pin: 'HASH', savedCadet: true } });
-    expect(await pinAuthorize({ name: 'Luna', pin: '246801' })).toEqual({ id: '6', name: 'Luna', image: null, sc: true });
-    expect(verifyPin).toHaveBeenCalledWith('K', '123456', { ip: 'unknown' });
+    expect(await pinAuthorize({ name: 'Luna', pin: '2468013' })).toEqual({ id: '6', name: 'Luna', image: null, sc: true });
+    expect(verifyPin).toHaveBeenCalledWith('K', '1234567', { ip: 'unknown' });
   });
   it('null for ordinary failures', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'bad credentials' });
-    expect(await pinAuthorize({ name: 'K', pin: '000000' })).toBeNull();
+    expect(await pinAuthorize({ name: 'K', pin: '0000000' })).toBeNull();
   });
   it('surfaces the friendly cooldown message by throwing on 429', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 429, error: 'take a break' });
-    await expect(pinAuthorize({ name: 'K', pin: '123456' })).rejects.toThrow('take a break');
+    await expect(pinAuthorize({ name: 'K', pin: '1234567' })).rejects.toThrow('take a break');
   });
   it('passes undefined through when credentials are missing', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 400, error: 'x' });

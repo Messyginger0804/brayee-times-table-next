@@ -61,14 +61,14 @@ Production migrations are manual and run before the merge; they are not applied 
 
 Braylee's initial student ID comes from `SEED_BRAYLEE_PIN`:
 
-- Set it to exactly 6 digits (0-9 only) to choose the ID (sign-in only accepts exactly 6 digits). Any other non-empty value makes the seed fail; an empty value counts as unset.
+- Set it to exactly 7 digits (0-9 only) to choose the ID (sign-in only accepts exactly 7 digits). Any other non-empty value makes the seed fail; an empty value counts as unset.
 - Leave it unset to get a random ID, printed once to the seed's output (for the compose stack: `docker compose logs app`) only when the user row is created. If you miss it, reset the database volume or run `npm run db:set-student-id -- --name Braylee` (hidden prompt; the script refuses a non-localhost database without `--i-have-a-backup`).
 - No student ID is stored in source. Do not put a real one in a committed file, issue or PR.
 - Student IDs are hashed with a pepper derived from `NEXTAUTH_SECRET`; tests set a dummy secret in `vitest.config.mjs`. Old-format hashes are only upgraded on sign-in in production (`VERCEL_ENV=production`) or with `PIN_REHASH=1`.
 
 Spelling words are loaded separately: `DATABASE_URL=... npm run db:import-spelling` (add `-- --dry-run` first). It only inserts new words and fills empty fields.
 
-Guest seats (`Guest 001`, ...) are created on demand by the app, not by the seed. Saved cadets are created by a guest through `POST /api/cadets/save`; `SAVED_CADETS_MAX` and `SAVED_CADET_RETENTION_DAYS` tune them. Validation rules (nickname, 6-digit student ID) live in `lib/cadetNames.js`; use `STUDENT_ID_LENGTH` (and `isValidStudentId`) instead of hard-coding the length.
+Guest seats (`Guest 001`, ...) are created on demand by the app, not by the seed. Saved cadets are created by a guest through `POST /api/cadets/save`; `SAVED_CADETS_MAX` and `SAVED_CADET_RETENTION_DAYS` tune them. Validation rules (nickname, 7-digit student ID) live in `lib/cadetNames.js`; use `STUDENT_ID_LENGTH` (and `isValidStudentId`) instead of hard-coding the length.
 
 ## Restoring a production dump locally
 

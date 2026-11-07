@@ -51,7 +51,7 @@ model UserProblem {
 model User {
   id                  Int                 @id @default(autoincrement())
   name                String              @unique
-  // bcrypt hash of the student ID, exactly 6 digits (HMAC-peppered since saved cadets; legacy rows may still hold plain bcrypt or plaintext until their next login). null for guest seats.
+  // bcrypt hash of the student ID, exactly 7 digits (HMAC-peppered since saved cadets; legacy rows may still hold plain bcrypt or plaintext until their next login). null for guest seats.
   pin                 String?
   image               String?
   // Times-table level (1 or 2), not a per-skill level.
@@ -72,7 +72,7 @@ model User {
   guestTokenHash      String?             @unique
   lastActiveAt        DateTime?
   // Saved cadets (lib/savedCadets.js): a guest seat converted into a named account. `name` is the nickname, `pin` the bcrypt hash of the
-  // student ID (exactly 6 digits). Not a guest any more (isGuest false, no seat, no token). Wiped after SAVED_CADET_RETENTION_DAYS without lastActiveAt.
+  // student ID (exactly 7 digits). Not a guest any more (isGuest false, no seat, no token). Wiped after SAVED_CADET_RETENTION_DAYS without lastActiveAt.
   savedCadet          Boolean             @default(false)
   savedAt             DateTime?
   mathProgress        MathSkillProgress[]
