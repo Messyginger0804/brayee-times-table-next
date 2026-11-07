@@ -20,14 +20,17 @@ import { getSkills, getSkill, generateProblem, checkAnswer, createRng, masterySt
   (`null` if unparseable). Fractions keep the typed form (`6/8`), decimals/integers are canonical (`0.5`).
 - `createRng(seed)` -> `{ next, int(min,max), pick, chance, shuffle, recent }` (mulberry32; seed is a number or string).
 - `masteryStatus(results, skill, { requireTime = true }?)` -> `{ mastered, attempts, window, accuracyPct, qualifyingPct, target, reason }`.
-  `results` are oldest-first `{ correct, seconds | ms, levelIndex? }`. Rule: last `window` (20) results; a result qualifies only
-  if correct AND within `secondsPerProblem`; mastered when qualifying share >= `skill.mastery.accuracyPct` (95 facts, 90 other)
-  with a full window. Missing time = not within time (`requireTime:false` = accuracy only, e.g. untimed Practice). If results carry
-  `levelIndex`, every level must be mastered ("mastered when all levels meet it") and `byLevel[]` is returned.
+  `results` are oldest-first `{ correct, seconds | ms, levelIndex? }`. Rule: last `skill.mastery.window` results (20 in the spec); a result
+  qualifies only if correct AND within `secondsPerProblem`; mastered when qualifying share >= `skill.mastery.accuracyPct` (95 facts, 90 other)
+  with a full window. Missing time = not within time (`requireTime:false` = accuracy only). If results carry
+  `levelIndex` and `skill.levels` exists, every level must be mastered ("mastered when all levels meet it") and `byLevel[]` is returned.
+  The library is generic; the app wraps it differently, see "How the app uses it" below.
 - `getMultiplicationFacts({ includeZero? })` / `MULT_SETS`: the 144 `Problem` rows (1-12 x 1-12, `problem` = `"7 x 8"`,
   `answer`, `grade` 3|4, `setId`, `order`, `hard`, and the `skillId`+`levelIndex` that teaches it), in teaching order
   x2, x10, x5, x0/1, x4, x3, x9, squares 6-10, x6, x7, x8, then x11, x12. `includeZero` adds x0 facts (`inTable:false`).
-  The app keeps using `Problem` rows for these; the generator skills (`g3-mult-*`, `g3-div-facts`, `g4-mult-11-15`) still work for non-table practice.
+  The app keeps using `Problem` rows for the six times-table skills (`g3-mult-0-1-2-5-10`, `g3-mult-3-4`, `g3-mult-9-squares`,
+  `g3-mult-6-7-8`, `g3-mult-mixed`, `g4-mult-11-15`): it never plays them through the generator (`/api/math/attempt` returns 400 for them and
+  `/skill/<id>` shows its "Mission not found" panel for them). Their generators still work as library functions, and `g3-div-facts` is played as a normal generated skill.
 
 ### Problem shape
 
@@ -100,9 +103,22 @@ their own spaces. Part types:
   decimal/fraction solutions are not generated. `g6-div-multi-digit` L3 quotients terminate within 2 decimals.
 - `g1-coins` / `g2-money-cents`: spec `count` is read as total coins (2-5 / 3-6); the newest coin appears in ~70% of items.
 
+## How the app uses it
+
+- The app passes `createRng` seeded with the current time once per mission session and calls `generateProblem(skillId, levelIndex, rng)`; the browser checks with
+  `checkAnswer` for instant feedback and the server (`POST /api/math/attempt`) judges again with `checkAnswer`.
+- Progress is one `MathSkillProgress` row per `(userId, skillId)` with `levelIndex` as a column and a rolling `recent` window of `{ c, ms }`
+  for the current level. Each answer is also stored in `MathAttempt` (with `levelIndex`). It is not keyed by level.
+- Mastery in the app does not call `masteryStatus` with `levelIndex`, so `byLevel` mode is unused. `lib/mathSkills.js` `evaluateWindow` calls it on the stored window:
+  - not the last level: the last 10 attempts (`LEVEL_ADVANCE_WINDOW`) with `window: 10` and the skill's `accuracyPct` and `secondsPerProblem` decide the level-up (95% skills need 10 of 10, 90% skills 9 of 10), and the window is cleared on level-up;
+  - last level: the last `mastery.window` attempts (20) decide mastery (95% = 19 of 20, 90% = 18 of 20).
+  The difference from the spec's single 20-problem rule was resolved in favour of the code; see [docs/curriculum/math.md](../../docs/curriculum/math.md).
+- `secondsPerProblem` is enforced only here, from the measured `ms` of each attempt (capped at 10 minutes). Testing mode is the times-table drill and has no timer.
+- `timeLimit` is set only for `g3-mult-mixed` L2/L3 (5 s, 3 s) and the UI only prints "Try for N seconds" (no countdown); that skill is one of the six `Problem`-backed skills, so it is not played through the generator in the app.
+- `Keypad` in the UI accepts up to `maxDigits + 6` characters, leaving room for `/`, spaces, `R` and a minus sign.
+
 ## Integration notes
 
-- Store answers as text; keep `Problem`/`UserProblem` for the 12x12 facts and key new progress by `(userId, skillId, levelIndex)`.
-- `timeLimit` is set only for `g3-mult-mixed` L2/L3 (5 s, 3 s); otherwise use `skill.mastery.secondsPerProblem` for Testing mode.
+- Store answers as text; keep `Problem`/`UserProblem` for the 12x12 facts.
 - Tests recompute every answer independently from the prompt text, so prompt strings are part of the contract; changing a
   prompt format needs the oracle in `tests/curriculum/helpers.js` updated.

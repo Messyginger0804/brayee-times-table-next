@@ -31,8 +31,9 @@ export function resolveProgress(data, currentLevel) {
   let prog = null;
   let level = currentLevel;
   if (data?.progress) prog = { have: data.progress.levelHave, need: data.progress.levelNeed };
+  // The server's level is the truth on every response, so a missed level-up response heals on the next attempt
+  if (Number.isInteger(data?.progress?.levelIndex)) level = data.progress.levelIndex;
   if (data?.leveledUp) {
-    level = data.progress.levelIndex;
     prog = { have: 0, need: data.progress.levelNeed };
   }
   return { level, prog, leveledUp: !!data?.leveledUp };

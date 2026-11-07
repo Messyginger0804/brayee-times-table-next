@@ -6,31 +6,42 @@ Prepared 2026-11-06 for Braylee's Times Tables. Texas (DFW) TEKS first, Common C
 
 ## How the Spelling Bee mode presents words (from the repo)
 
-- `components/SpellingBeeMode.jsx` speaks `Spell: <word>` with browser speech synthesis (no audio files).
+- The Spelling Bee code (`components/SpellingBeeMode.jsx`, with `components/modes/shared/useSpellingRound.js` and `SpellingViews.jsx`) speaks `Spell: <word>` with browser speech synthesis (no audio files).
 - It shows part of speech and definition, then the sentence with the target word blanked as `_____` (case-insensitive `\bword\b` replace), so every sentence in this file contains the exact word form.
-- Buttons: hear the word, hear the full sentence. Hint text is also supported.
+- Buttons: hear the word, hear the full sentence. The only hint text is "Type your spelling first" for an empty submit.
+- The answer is correct when it equals the word after trimming, lower-casing and turning curly quotes into straight ones (so iOS Smart Punctuation does not break `don't`).
+- Words are picked at random with replacement. A round is endless, nothing is saved, and there is no promotion between levels.
 - So each row needs: word, partOfSpeech, definition, sentence. Syllable count and unit are for level selection and hints.
+- The start panel lets a child with a grade pick Grade 1-6, the kind of words (All mixed, Core, Sight words, Bee challenge) and, for Core, one spelling pattern (unit). See [GAMEPLAY.md](../GAMEPLAY.md).
 
 ## Existing `SpellingWord` table (local Docker Postgres, read-only)
 
 Columns: `id`, `word` (UNIQUE), `definition`, `partOfSpeech`, `sentence`, `difficulty` (int default 1), `category` (nullable), `active`, `createdAt`, `updatedAt`. 54 rows; all `difficulty=1`, `category` NULL, `active` true. Plural nouns use `partOfSpeech='plural noun'`; verbs like `shops` and `straps` are stored as 3rd-person verbs. Definitions look dictionary-derived (Merriam-Webster style), sentences are blanks-friendly. There is no grade field, so these 54 mix grade 1-3 words.
 
-### Recommended schema changes
+### Schema as implemented
+
+All fields below exist on `SpellingWord`. Rows are loaded by `scripts/import-spelling.js` (`npm run db:import-spelling`, supports `--dry-run`), which inserts new words and, on rows that already exist (including the 54 legacy rows), only fills empty columns (`grade`, `unitId`, `tier`, `syllables`, `source`, `category`; legacy words missing from the spec get `grade`, `unitId`, `category` and `source` from `existingWordsClassification`). It never overwrites a non-empty value or deletes.
 
 | Field | Status | Notes |
 |---|---|---|
-| word, definition, partOfSpeech, sentence, active | existing | map 1:1 |
-| difficulty | existing | now 1-3 within grade |
-| category | existing | store `unitId` (e.g. `g3u6`) |
-| grade | NEW int 1-6 | main level key |
-| unitId | NEW text (optional if category used) | pattern unit |
-| tier | NEW text core/hf/bee | warm-ups and bee rounds |
-| syllables | NEW int | hints |
-| source | NEW text | original vs legacy |
+| word, definition, partOfSpeech, sentence, active | original columns | map 1:1 |
+| difficulty | original column | 1-3 within a grade; stored but not used by the picker |
+| category | original column | holds the same value as `unitId` in `spelling.json`; the app filters on `unitId` |
+| grade | int 1-6 | main filter (`?grade=`) |
+| unitId | text | pattern unit, e.g. `g3u6` (`?unit=`) |
+| tier | text core/hf/bee | `?tier=` |
+| syllables | int | stored, not shown in the UI |
+| source | text | original or legacy |
 
-### Recommended level mapping
+### Level mapping as implemented
 
-One level per grade (Level 1 = 1st grade ... Level 6 = 6th). Inside a level, ramp `difficulty` 1 -> 2 -> 3 across rounds and finish with the `bee` tier. Sight-word (`hf`) words make good warm-ups. Promote a player when they get about 8 of 10 difficulty-2 words right. Let the parent override the starting grade.
+Resolved in favour of the code. The earlier recommendation (ramp difficulty, promote a player after about 8 of 10 difficulty-2 words, parent override of the starting grade) is not built. What the app does:
+
+- There is no level progression in Spelling Bee. The player's grade (set on the home screen, the same grade as the math missions) is the default word set; the picker can switch to any grade 1-6.
+- Inside a grade the player may restrict to one tier (`core`, `hf` sight words, `bee`) and, for core, one unit. Difficulty is not used for selection.
+- No spelling attempts are saved; `SpellingAttempt` exists in the schema but nothing writes to it.
+- `GET /api/spelling/words` uses the signed-in player's grade when no `grade` is passed. If no `grade`, `unit` or `tier` was passed and the table has no rows for the player's grade it returns every active word; if the table is empty or the database fails it returns the bundled 54-word list (`lib/spellingWords.json`).
+- The unit titles in the picker come from `lib/spellingUnits.js`, an embedded copy of this file's unit list (79 units) with kid-friendly titles. It is not generated at build time, so update it by hand when `spelling.json` units change.
 
 | Level | Words | core | hf | bee |
 |---|---|---|---|---|

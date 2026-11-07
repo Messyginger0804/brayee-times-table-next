@@ -1,80 +1,106 @@
-Braylee's Space Academy — Next.js
+# Braylee's Space Academy
 
-Math & spelling missions for space cadets.
+A math and spelling practice game for one child, Braylee, built by her father. She signs in with a student ID (5-8 digits); anyone else plays as an anonymous guest seat (no sign-ups, no personal data) and can optionally keep their progress as a saved cadet (a nickname plus a student ID). Math missions cover grades 1-6 plus the 12x12 times tables; the Spelling Bee reads words aloud. The code and metadata may still say "Braylee's Space Academy" on branches that predate the rename.
 
-This is a Next.js port of the existing Vite + Express app in `../braylees_times_table`, preserving the same features:
+## Features
 
-- Braylee logs in with her student ID (5-8 digits); everyone else plays as an anonymous guest seat (no sign-ups). A guest can tap "Save my cadet" to keep their progress under a nickname + student ID (5-8 digits) and sign in later ("Are you a saved cadet? Sign in")
-- Memorize, Practice, and Testing modes with playful UI
-- Per-user progress tracking and last-5 summaries
-- Prisma/Postgres data model identical to the original
+- Times tables (1-12 x 1-12) in three modes: Memorize, Practice, Testing. Testing unlocks after every fact in her current set has been practiced (level 1 uses only the 1-5 tables).
+- Math missions: 79 skills across grades 1-6, 254 levels, generated problems with a purpose-built keypad (fractions, decimals, remainders, comparisons, yes/no). A mission map shows the next skill.
+- Spelling Bee with words stored in the database, grouped by grade and unit.
+- Progress tracking: per-fact mastery, per-skill level and mastery windows, last-5 summaries, best test score.
+- Three kinds of player: Braylee (student ID sign-in with escalating lockout), guest seats (cookie-based, wiped after 7 idle days), and saved cadets (a guest who taps "Save my cadet" to keep their progress under a nickname + student ID; deleted after 30 idle days by default). The "Are you a saved cadet? Sign in" link on the login screen takes name + student ID.
+- Spoken cheers and instructions using the browser's built-in speech engine, with optional pre-generated clips for Braylee's lines. No paid APIs.
+- Animated feedback (GIF cards, fireworks, 3D space backdrop), installable as a PWA.
 
-Local development (local only; never point at prod)
+## Tech stack
 
-- Postgres + prod-build app: `docker compose up -d --build` (db on localhost:55436, app on http://localhost:3200; both `restart: unless-stopped`). Stop: `docker compose down` (add `-v` ONLY to wipe the DB volume).
-- Dev server: `nohup npm run dev:local > /tmp/dev3300.log 2>&1 &` -> http://localhost:3300 (loads `.env.docker`, DB at localhost:55436). Stop: `pkill -f "[n]ext dev -p 3300"`. Needs the `db` container up.
-- Config is `.env.docker` (gitignored; `env.example` lists the keys). `GUEST_SEATS` (default 5) sets the number of guest seats; `CRON_SECRET` guards `/api/cron/purge-guests` (`curl -H "Authorization: Bearer $CRON_SECRET" localhost:3300/api/cron/purge-guests`; 401 without it).
-- Logins: "Play as Guest" (cookie-based seat, wiped after 7 idle days) or "Are you a saved cadet? Sign in" with a name + Student ID (5-8 digits; Braylee uses it too).
-- Saved cadets: `SAVED_CADETS_MAX` (default 10, Braylee not counted) and `SAVED_CADET_RETENTION_DAYS` (default 30 idle days, then the cadet and all their data are deleted; lazily and in the daily cron; Braylee never). The student ID is stored as bcrypt of an HMAC (pepper derived from `NEXTAUTH_SECRET`, so rotating that secret invalidates every student ID) in `User.pin`, and is never logged, returned or stored in plaintext. Failed sign-ins all look alike (no hint whether a name exists) and the rest escalates up to 24 hours. `npm run db:cleanup-accounts` refuses to run while saved cadets exist unless you pass `--include-saved-cadets` (then they are deleted too). `/gifs` is dev-only (404 on :3200).
-- Reset the local DB from the prod dump (`.backups/prod.dump`, real users' data: never commit or share). The dump is pg 18 format, so restore with a postgres:18 client:
+| Area | Choice |
+|---|---|
+| Framework | Next.js 14 (App Router), React 18, plain JS/JSX (one TypeScript file: `config/gifs.ts`) |
+| Auth | next-auth 4 with JWT sessions, `bcryptjs` student-ID hashes (HMAC-peppered) |
+| Database | PostgreSQL 16 via Prisma 5 |
+| UI | Tailwind CSS 3, framer-motion, three.js with react-three-fiber |
+| Tests | Vitest (jsdom for components) |
+| CI | GitHub Actions: lint, test with coverage, build, fallow dead-code and duplication checks |
+| Hosting | Vercel (cron for guest cleanup); Docker image for local use |
 
-      docker compose up -d db
-      docker exec braylee-times-table-next-db-1 psql -U braylee -d postgres -c 'drop database braylee with (force)' -c 'create database braylee'   # container name may differ: `docker compose ps`
-      docker run --rm --network host -v "$PWD/.backups:/d:ro" -e PGPASSWORD=braylee_local postgres:18 pg_restore --no-owner --no-privileges -h localhost -p 55436 -U braylee -d braylee /d/prod.dump
-      export DATABASE_URL=postgresql://braylee:braylee_local@localhost:55436/braylee
-      npx prisma migrate resolve --applied 20260301000000_baseline_prod_schema
-      npm run db:migrate
-      npm run db:cleanup-accounts            # dry run; add -- --confirm to write
+## Quick start
 
-- Tests: `npm test` (vitest), `npm run lint`, `npx tsc --noEmit`.
-- Deploying: see `docs/DEPLOY-RUNBOOK.md`.
+Prerequisites: Node 20 or newer to run the app (the Dockerfile uses 20, CI uses 24); `npm test` needs Node 22.22.2 or newer because jsdom 31 requires it, npm, Docker with the compose plugin. Details are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-Getting Started
+1. Install dependencies: `npm install`
+2. Create `.env.docker` (gitignored) from [env.example](env.example). At minimum `DATABASE_URL` (host `db`, port 5432, user `braylee`, database `braylee`, password as in `docker-compose.yml`) and `NEXTAUTH_SECRET`. Optionally `SEED_BRAYLEE_PIN` (a 5-8 digit student ID for Braylee).
+3. Start Postgres and the production-build app: `docker compose up -d --build`. The app container applies migrations and seeds on start.
+4. Optional, for hot reload: `npm run dev:local`.
 
-1) Install dependencies
+| Service | URL / port |
+|---|---|
+| Docker app (production build) | http://localhost:3200 |
+| Dev server (`npm run dev:local`) | http://localhost:3300 |
+| Postgres (docker `db`) | localhost:55436 |
 
-   npm install
+Stop the stack with `docker compose down`. Add `-v` only to wipe the database volume.
 
-2) Configure database
+If you did not set `SEED_BRAYLEE_PIN`, the seed prints a random student ID once, in the app container log, when it first creates the Braylee user (`docker compose logs app`). Guests need no student ID: use "Play as Guest".
 
-   Create a `.env` file with a Postgres URL:
+## npm scripts
 
-   DATABASE_URL=postgresql://user:pass@localhost:5432/braylee_times_table
+| Script | What it does |
+|---|---|
+| `npm run dev` | `next dev` on port 3000, using `.env` / `.env.local` |
+| `npm run dev:local` | Dev server on port 3300 against the docker Postgres, loading `.env.docker` |
+| `npm run build` | `prisma generate && next build` |
+| `npm start` | `next start -p 3000` |
+| `npm run lint` | `next lint` |
+| `npm test` | `vitest run` |
+| `npm run test:coverage` | Vitest with v8 coverage (writes `coverage/coverage-final.json`) |
+| `npm run prisma:generate` | `prisma generate` (also runs on `postinstall`) |
+| `npm run prisma:migrate` | `prisma migrate dev` (create and apply a migration on a local DB) |
+| `npm run prisma:seed` | `node prisma/seed.js` |
+| `npm run db:migrate` | `prisma migrate deploy` (apply checked-in migrations) |
+| `npm run db:seed` | `prisma db seed` |
+| `npm run db:import-spelling` | Idempotent import of `docs/curriculum/spelling.json` into `SpellingWord`; supports `--dry-run` |
+| `npm run db:cleanup-accounts` | One-time account merge/cleanup; dry run unless `--confirm` is passed. Refuses to run while saved cadets exist unless `--include-saved-cadets` is passed |
+| `npm run db:set-student-id` | Set or reset a named account's student ID (`-- --name Braylee`); reads the ID from a hidden prompt or stdin, never argv. Needs `--i-have-a-backup` for a non-localhost database |
 
-3) Generate client and run migrations
+Type check (not an npm script): `npx tsc --noEmit`.
 
-   npx prisma generate
-   npx prisma migrate dev --name init
+## Project structure
 
-4) Seed data (optional but recommended)
+| Path | Contents |
+|---|---|
+| `app/` | App Router pages (`/`, `/login`, `/spelling-bee`, `/skill/[id]`, dev-only `/gifs`), `layout.jsx`, manifest and share images |
+| `app/api/` | Route handlers; shared auth helpers in `app/api/_utils.js` |
+| `components/` | UI. `modes/` holds mode logic and hooks, `game/` the question card and keypads, `ui/` base widgets, `braylee/`, `gif/`, `space/` visuals |
+| `lib/` | Server and shared logic: auth, guest seats, saved cadets, student-ID hashing and lockout, rate limit, mastery, voice, Prisma client |
+| `lib/curriculum/math/` | Pure-JS problem generators, answer checking and mastery rules; see [lib/curriculum/README.md](lib/curriculum/README.md) |
+| `config/` | GIF catalog, cheer lines, voice clip list |
+| `prisma/` | `schema.prisma`, `migrations/`, seed scripts |
+| `scripts/` | Dev server launcher, spelling import, account cleanup, set-student-id, icon and image builders |
+| `tests/` | Vitest suites; API route tests use `tests/api/helpers.js` |
+| `docs/` | Project documentation and curriculum research |
+| `public/` | Static assets (Braylee cutouts, icons, GIFs, audio clips) |
+| `private.example/` | Template for gitignored `private/` avatar photos |
+| `middleware.js` | Redirects logged-out visitors from game pages to `/login` |
+| `vercel.json`, `Dockerfile`, `docker-compose.yml`, `docker-entrypoint.sh` | Deploy and local-stack config |
 
-   node prisma/seed.js
-   node prisma/seed-users.js
+## Documentation
 
-5) Run the app
+| Page | Contents |
+|---|---|
+| [docs/README.md](docs/README.md) | Index of all documentation |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Setup, env files, migrations, seeding, conventions, how to extend |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the system fits together |
+| [docs/API.md](docs/API.md) | HTTP endpoints |
+| [docs/DATA-MODEL.md](docs/DATA-MODEL.md) | Database tables and relationships |
+| [docs/GAMEPLAY.md](docs/GAMEPLAY.md) | Modes, levels, mastery and unlock rules |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Running and maintaining production |
+| [docs/TESTING.md](docs/TESTING.md) | Test strategy and how to run tests |
+| [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) | Known problems and limitations |
+| [docs/DEPLOY-RUNBOOK.md](docs/DEPLOY-RUNBOOK.md) | Production migration and deploy steps |
+| [docs/curriculum/math.md](docs/curriculum/math.md), [spelling.md](docs/curriculum/spelling.md) | Curriculum research (JSON twins sit beside them) |
+| [lib/curriculum/README.md](lib/curriculum/README.md) | Math problem library API |
 
-   npm run dev
+## Privacy
 
-API Overview
-
-- `POST /api/auth/login` — { name, pin } (`pin` is the student ID, 5-8 digits)
-- `POST /api/guest/claim` — { mode: 'resume' | 'new' }; `GET /api/guest/status`; `POST /api/cadets/save` — { name, secret, confirm } (`secret` is the student ID, 5-8 digits) (guest only; answers { ok, name }); `PUT /api/me/grade` — { grade }
-- `GET /api/auth/me` — current user
-- `POST /api/auth/logout`
-- `POST /api/users/level` — { level }
-- `GET /api/problems` — auto-seeds 12x12 if empty
-- `GET /api/problems/count`
-- `POST /api/problems/:id/attempt` — { correct }
-- `GET /api/problems/:id/last5`
-- `POST /api/problems/:id/mastered`
-- `GET /api/attempts/last5`
-- `GET /api/progress/summary`
-- `GET /api/progress/level/:level/status`
-- `POST /api/test/score`, `GET /api/test/best`
-
-Notes
-
-- Public assets (Braylee's cutout in `public/braylee/` and GIFs) are copied under `public/`.
-- Tailwind and the "Gochi Hand" Google font are configured to match the original styling.
-
-# brayee-times-table-next
+The repository is public. Real student IDs and PINs, env values, database dumps and avatar photos must never be committed (`.env*`, `private/`, `.backups/` and `*.dump` are gitignored).

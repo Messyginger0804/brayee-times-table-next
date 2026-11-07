@@ -8,11 +8,16 @@ import { generateProblem, checkAnswer, createRng } from '../../../lib/curriculum
 import { startAfterIntro } from '../../../lib/readySetGo';
 import { kidHint, pauseMs, buildAttemptPayload, resolveProgress, celebrationFor } from './skillLogic';
 
+const ATTEMPT_TIMEOUT_MS = 8000;
+
+/** Aborts a hung request so the game never freezes. The attempt is not retried, so it cannot be recorded twice. */
 async function postAttempt(payload) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ATTEMPT_TIMEOUT_MS);
   try {
-    const r = await axios.post('/api/math/attempt', payload, { withCredentials: true });
+    const r = await axios.post('/api/math/attempt', payload, { withCredentials: true, signal: ctl.signal });
     return r.data;
-  } catch (_) { return null; /* offline or signed out: keep playing, progress just is not saved */ }
+  } catch (_) { return null; /* offline, timed out or signed out: keep playing, progress just is not saved */ } finally { clearTimeout(t); }
 }
 
 function celebrate(c, lvl, { setLevelIndex, setModal, feedback }) {
@@ -85,6 +90,7 @@ export function useSkillGame({ skillId, skill, feedback, levelRef, setProg, setL
     const started = Date.now();
     const data = await postAttempt(buildAttemptPayload(skillId, problem, given, ms));
     const { level, prog } = resolveProgress(data, levelRef.current);
+    if (!data?.leveledUp && level !== levelRef.current) setLevelIndex(level);
     levelRef.current = level;
     if (prog) setProg(prog);
     const wait = Math.max(0, pauseMs(check.correct, !!h) - (Date.now() - started));
@@ -92,6 +98,7 @@ export function useSkillGame({ skillId, skill, feedback, levelRef, setProg, setL
       busy.current = false;
       celebrate(celebrationFor(data, level), level, { setLevelIndex, setModal, feedback });
       next(level);
+      if (!data) setNote("Couldn't save that one, but keep going! 🚀");
     }, wait);
   };
 

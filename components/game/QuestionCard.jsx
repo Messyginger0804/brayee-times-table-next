@@ -26,7 +26,7 @@ const TRANSITION_IDLE = { type: 'spring', stiffness: 300, damping: 26 };
 
 function Prompt({ rich, parts, problem, typed, status }) {
   if (!rich) {
-    return <p className="text-jumbo text-ink" aria-label={`Question: ${prettyProblem(problem)}`}>{prettyProblem(problem)}</p>;
+    return <p className="text-jumbo text-ink">{prettyProblem(problem)}</p>;
   }
   return (
     <div className={(problem || '').length > 18 ? 'text-[1.75rem] leading-tight' : 'text-[2.5rem] leading-tight'}>
@@ -70,6 +70,7 @@ export default function QuestionCard({ id, problem, answer, typed, status, parts
 
   return (
     <div className="relative w-full max-w-sm" style={{ minHeight: rich ? '9.5rem' : '11rem' }}>
+      <p className="sr-only" role="status" aria-live="polite" data-testid="question-announce">{`Question: ${prettyProblem(problem)}`}</p>
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={id}

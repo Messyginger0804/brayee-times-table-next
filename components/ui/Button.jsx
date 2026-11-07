@@ -1,6 +1,10 @@
 "use client";
 import { forwardRef } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
+
+const MotionLink = motion.create(Link);
+const isInternal = (href, target) => typeof href === 'string' && href.startsWith('/') && !href.startsWith('//') && target !== '_blank';
 
 const tones = {
   cyan: 'bg-neon-cyan shadow-btn-cyan',
@@ -23,7 +27,7 @@ const Button = forwardRef(function Button(
 ) {
   const text = tone === 'ghost' ? '' : 'text-space-950';
   const cls = `btn-chunk inline-flex items-center justify-center gap-2 rounded-chunk font-bold ${tones[tone]} ${text} ${sizes[size]} ${className}`;
-  const Comp = href ? motion.a : motion.button;
+  const Comp = href ? (isInternal(href, props.target) ? MotionLink : motion.a) : motion.button;
   return (
     <Comp
       ref={ref}

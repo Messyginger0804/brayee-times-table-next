@@ -3,7 +3,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useFeedback } from './gif/GifProvider';
 import { useSceneKind } from '../lib/sceneFx';
-import { CenterScreen } from './modes/shared/GateViews';
+import { CenterScreen, UnreachablePanel } from './modes/shared/GateViews';
 import { SkillBlocked, SkillPlay } from './modes/shared/SkillView';
 import { useAuthUser, useLoginRedirect } from './modes/shared/useAuthUser';
 import { useSkillLoader } from './modes/shared/useSkillLoader';
@@ -15,11 +15,13 @@ export default function SkillMode({ skillId }) {
   const router = useRouter();
   const feedback = useFeedback();
   useSceneKind('game');
-  const [user] = useAuthUser(authStatus);
+  const [user, , auth] = useAuthUser(authStatus);
   useLoginRedirect(authStatus);
-  const { skill, levelIndex, setLevelIndex, prog, setProg, levelRef } = useSkillLoader(user, skillId);
+  const { skill, levelIndex, setLevelIndex, prog, setProg, levelRef, loadError, reload } = useSkillLoader(user, skillId);
   const game = useSkillGame({ skillId, skill, feedback, levelRef, setProg, setLevelIndex });
 
+  if (authStatus !== 'loading' && !user && auth.unreachable) return <UnreachablePanel onRetry={auth.retry} />;
+  if (user && loadError) return <UnreachablePanel onRetry={reload} />;
   if (authStatus === 'loading' || !user || skill === undefined) {
     return <CenterScreen><p role="status" className="text-title text-neon-cyan">Loading mission… 🚀</p></CenterScreen>;
   }

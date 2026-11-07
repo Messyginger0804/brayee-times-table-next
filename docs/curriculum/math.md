@@ -15,7 +15,7 @@ Generated 2026-11-06. Texas TEKS first, Common Core (CCSS) cross-referenced. Mac
 
 - TEKS codes: `grade.strand letter`, e.g. `3.4F`. A trailing `?` means the code is inferred and not confirmed in the text read; in JSON that is `verified:false`.
 - Season: fall = Aug-Nov, winter = Dec-Feb, spring = Mar-May (Texas school year). Order within a grade follows IM K-5 unit order and typical Texas pacing. Bluebonnet pacing was not retrievable.
-- Mastery: `accuracy over the last 20 problems` and `seconds per problem` including keypad entry.
+- Mastery: `accuracy over the last 20 problems` and `seconds per problem` including keypad entry. These are the spec targets stored on every skill. How the app applies them (a shorter 10-problem window for moving between levels) is described in "How the app applies the mastery targets" in section 2.
 - Examples use plain `x` and `/`; stored problem text should follow the existing `Problem.problem` style (`7 x 8`).
 
 ### JSON schema (math.json)
@@ -36,12 +36,30 @@ Rules: `levels[].params` override or narrow `generator.operands`; absent keys in
 
 ## 2. Recommendations: mapping app levels to grades
 
-Grade is a recommended starting band, not a gate. A child picks (or a parent sets) a grade; inside it, skills unlock in `order`. Children can jump to any grade.
+Grade is a recommended starting band, not a gate. The child picks a grade (`PUT /api/me/grade`; there is no parent screen any more) and can change it at any time. Inside a grade, skills unlock in `order`.
 
 - Level = one skill's sub-level (skillId.Ln). Do not reuse the current integer User.level for this; keep it as the XP/star level and add per-skill progress.
-- Unlock next skill when previous skill mastery (accuracyPct, secondsPerProblem) is met on the last 20 problems; allow parent override.
+- Unlock next skill when the previous skill in the same grade is mastered (see "How the app applies the mastery targets" below). There is no parent override: `MathSkillProgress.unlockedByParent` is a legacy column that the app never reads to unlock anything (only the account-merge script carries it over).
 - Interleave 20% review from earlier skills and grades (spaced repetition) in Practice/Testing.
-- Mode mapping: Memorize = show answer first then recall (levels with new facts); Practice = untimed or soft-timed with feedback; Testing = timed at secondsPerProblem; Spelling Bee unchanged.
+- Interleaved review was a recommendation only; the app does not schedule review across skills.
+- Mode mapping as built: Memorize = flash cards over the times-table facts (no grading); Practice = untimed drill with feedback over the times-table facts; Testing = one-pass, no-timer drill over the times-table facts; generated skills are played in their own Skill missions (`/skill/<id>`), where `secondsPerProblem` is enforced. Spelling Bee is separate. See [GAMEPLAY.md](../GAMEPLAY.md).
+
+### How the app applies the mastery targets
+
+Resolved in favour of the code: this document and `lib/curriculum/README.md` used to say that every level is judged on the last 20 problems and that a parent can override. The implementation (`lib/mathSkills.js` `evaluateWindow`, `app/api/math/attempt/route.js`, `lib/skillState.js`) does the following, and the docs now match it.
+
+| Situation | Window judged | Rule |
+|---|---|---|
+| Level 1 to n-1 of a generated skill (move to the next level) | last 10 attempts at the current level (`LEVEL_ADVANCE_WINDOW = 10`) | Needs at least 10 attempts at the level. A result qualifies if it is correct and within `secondsPerProblem`. The qualifying share must reach the skill's `accuracyPct`. |
+| Last level of the skill (skill becomes mastered) | last `mastery.window` attempts (20 for the skills in the spec; code default 20) | Same qualifying rule over 20 attempts. |
+
+- Consequences of the 10-problem window: a 95% skill needs 10 of 10 qualifying (one miss or one slow answer blocks the level-up), a 90% skill needs 9 of 10. On the last level, 95% means 19 of 20 and 90% means 18 of 20.
+- Level-up clears the stored window, so every level starts fresh. Mastery is permanent once set; further play does not unset it.
+- Time is measured in the browser (`ms`, capped at 10 minutes) and sent with each attempt; the server judges the answer itself with `checkAnswer`, then applies the rule. An answer with no time information never qualifies.
+- A skill is unlocked when it is first in its grade (`order` 1), or the previous skill in the same grade (`order - 1`) is mastered, or the skill itself is mastered or already has attempts. A skill never re-locks.
+- `masteryStatus` in `lib/curriculum/math/mastery.js` also has a `byLevel` mode (all levels mastered when results carry `levelIndex`). The app does not use it: it passes results without `levelIndex`.
+- The six times-table skills (`g3-mult-0-1-2-5-10`, `g3-mult-3-4`, `g3-mult-9-squares`, `g3-mult-6-7-8`, `g3-mult-mixed`, `g4-mult-11-15`) are not played through the generator and do not use any of the above. They are tracked on the 144 `Problem` rows: a skill is mastered when every fact in its set is individually mastered, and a fact is mastered after 3 correct answers in a row (any miss clears it; `lib/mastery.js`).
+- The per-skill "Mastery: >= N% over last 20, <= S s each" lines in section 4 are the spec targets. S is applied as written; N and the 20 apply to the last level, and N is applied to a 10-problem window on earlier levels.
 
 ### Where the existing 12x12 times tables fit
 
@@ -56,9 +74,9 @@ Local read-only DB check: `Problem` has 144 rows (answers 1-144), `UserProblem` 
 Data notes:
 - Problem: 144 rows (id, problem text like '1 x 1' with lowercase x, answer integer, correct, incorrect, mastered). UserProblem(userId, problemId, everCorrect, updatedAt, mastered) composite PK. User.level integer default 1. 413 UserProblem rows locally.
 - Answer is an integer column: cannot store fractions, decimals, remainders or symbols.
-- Per-user mastery already exists for the 144 table rows; new skills are generated on the fly, so mastery must be keyed by (userId, skillId, level) and, for fact skills, optionally (a,b) pairs.
+- Per-user mastery already exists for the 144 table rows; generated skills are tracked per `(userId, skillId)` with the current level stored on the row (see below).
 
-Suggested persistence: Add Skill progress table (userId, skillId, levelOrder, attempts, correct, recentWindow json, masteredAt) and store answers as text with answerType; keep Problem/UserProblem untouched for tables and map grade 3/4 skills to them via a (a,b) key. Generated items do not need rows.
+Persistence as built: `MathSkillProgress` has one row per `(userId, skillId)` with `levelIndex`, `attempts`, `correct`, a `recent` JSON window of `{c, ms}` for the current level, `mastered` and `masteredAt`. Each answer is also stored in `MathAttempt` (with `levelIndex`, prompt, expected, given, correct, ms). `Problem`/`UserProblem` are untouched and still back the times-table skills; generated items do not need rows.
 
 ## 3. Fact-fluency research and targets
 
@@ -1346,7 +1364,7 @@ Suggested persistence: Add Skill progress table (userId, skillId, levelOrder, at
 
 | Need | Grades | Notes |
 |---|---|---|
-| Digits 0-9, backspace, enter | 1-6 | Exists today. Raise max entry length to 7 digits (grade 4 add/sub to 1,000,000) and keep manual Enter for multi-digit answers (no auto-submit); auto-submit is fine for facts. |
+| Digits 0-9, backspace, enter | 1-6 | Implemented. The library flag `maxDigits` is 7 and the on-screen `Keypad` accepts up to `maxDigits + 6` characters so there is room for `/`, spaces, `R` and a minus sign. Manual Enter submits (no auto-submit). |
 | Choice buttons < > = | 1-4 | Comparison skills; replace keypad by 3 big buttons. |
 | Choice buttons yes/no, even/odd, prime/composite | 3-5 | Binary classification skills. |
 | Decimal point key | 3-6 | Money in grade 3; decimals grade 4+. Accept '.5', '0.50', '3', '3.0'. Compare numerically, not as strings. |
@@ -1399,4 +1417,6 @@ Suggested persistence: Add Skill progress table (userId, skillId, levelOrder, at
 - Bluebonnet scope and sequence, Go Math! Texas, enVision Texas, Eureka/EngageNY and IM 6-8 were not retrieved; season labels are approximate.
 - CCSS codes other than 3.OA.C.7 are from general knowledge; items ending in `?` are least certain.
 - The 3 s criterion and the 90/95% accuracy numbers are conventions/design defaults, not standards-mandated.
-- Decide: single 'grade' selector per child vs per-skill free play; whether to add x0 facts and division to the Problem table or generate them; whether to keep integer-only `Problem.answer`.
+- Resolved: one grade selector per child (stored on the user). The 12x12 table stays on `Problem` rows; x0 facts and squares 13-15 are not `Problem` rows, so they are not tracked.
+- Open: the 10-problem level-advance window is stricter than the 20-problem spec for 95% skills (10 of 10). Whether to loosen it (for example allow one miss) is a product decision; the docs describe today's behavior.
+- Original question: single 'grade' selector per child vs per-skill free play; whether to add x0 facts and division to the Problem table or generate them; whether to keep integer-only `Problem.answer`.

@@ -45,7 +45,7 @@ export default function Keypad({ value, onChange, onSubmit, disabled = false, ma
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const keyCls = 'btn-chunk touch-target flex h-14 items-center justify-center rounded-chunk bg-space-700 text-number font-bold text-ink shadow-chunk border border-white/15 select-none';
+  const keyCls = 'btn-chunk touch-manipulation touch-target flex h-14 items-center justify-center rounded-chunk bg-space-700 text-number font-bold text-ink shadow-chunk border border-white/15 select-none';
   const tap = { scale: 0.92, y: 2 };
 
   return (
@@ -72,7 +72,7 @@ export default function Keypad({ value, onChange, onSubmit, disabled = false, ma
         <span className="text-[2rem] leading-none">0</span>
       </motion.button>
       <motion.button type="button" disabled={disabled || value === ''} whileTap={tap} onClick={onSubmit}
-        className="btn-chunk touch-target flex h-14 items-center justify-center rounded-chunk bg-neon-lime text-space-950 font-bold shadow-btn-lime"
+        className="btn-chunk touch-manipulation touch-target flex h-14 items-center justify-center rounded-chunk bg-neon-lime text-space-950 font-bold shadow-btn-lime"
         aria-label={`Submit answer ${value}`}>
         <span className="text-lead">{submitLabel} ✓</span>
       </motion.button>

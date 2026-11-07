@@ -17,6 +17,7 @@ export default function GradePicker({ current = null, onPicked }) {
       onPicked?.(r.data?.grade ?? g);
     } catch (_) {
       setError('Hmm, that did not save. Try again!');
+    } finally {
       setBusy(null);
     }
   };

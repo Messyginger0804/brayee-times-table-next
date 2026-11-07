@@ -17,6 +17,7 @@ function TestingMode({ user, problems, level, onLevelUp, onReset, attemptSummari
   const { streak, setStreak, total: score, setTotal: setScore } = useStreakTotal();
   const { gameOver, setGameOver, passed, setPassed, passOpen, setPassOpen } = useTestPhase();
   const { answer, setAnswer, status, setStatus, hint, setHint } = useDrillInput();
+  const [levelSaved, setLevelSaved] = useState(true); // false when the Level 1 pass could not be saved
   const timer = useDrillTimer(feedback);
   const passedLevelRef = useRef(level);
 
@@ -29,8 +30,13 @@ function TestingMode({ user, problems, level, onLevelUp, onReset, attemptSummari
 
   const onResult = useTestResult({
     feedback, index, count: problems.length, level, onLevelUp, timer, passedLevelRef, streak, setStreak, setScore,
-    setAnswer, setStatus, setIndex, setPassed, setGameOver, setPassOpen,
+    setAnswer, setStatus, setIndex, setPassed, setGameOver, setPassOpen, setLevelSaved,
   });
+  const retrySave = async () => {
+    let saved = false;
+    try { saved = (await onLevelUp({ stay: true })) !== false; } catch (_) {}
+    setLevelSaved(saved);
+  };
 
   const submit = useDrillSubmit({ current, answer, status, setStatus, setHint, attemptSummaries, setAttemptSummaries, onResult });
 
@@ -45,6 +51,8 @@ function TestingMode({ user, problems, level, onLevelUp, onReset, attemptSummari
         passOpen={passOpen}
         setPassOpen={setPassOpen}
         passedLevel={passedLevelRef.current}
+        levelSaved={levelSaved}
+        onRetrySave={retrySave}
       />
     );
   }
