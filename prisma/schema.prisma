@@ -7,6 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// The 144 times-table facts (1-12 x 1-12), shared by all players. correct/incorrect are global counters across players.
 model Problem {
   id           Int           @id @default(autoincrement())
   problem      String
@@ -50,12 +51,14 @@ model UserProblem {
 model User {
   id                  Int                 @id @default(autoincrement())
   name                String              @unique
+  // bcrypt hash of the 4-digit PIN (legacy rows may still hold a plaintext PIN until their next login). null for guest seats.
   pin                 String?
   image               String?
+  // Times-table level (1 or 2), not a per-skill level.
   level               Int                 @default(1)
   createdAt           DateTime            @default(now())
-  // bcrypt hash of the 4-digit PIN (legacy rows may still hold a plaintext PIN until their next login)
-  // Login lockout: 5 failures => lockedUntil = now + 60s; reset on success.
+  // Login lockout (lib/pinAuth.js): consecutive wrong PINs 5-9 => lockedUntil = now + 1 min, 10-14 => 5 min, 15+ => 30 min.
+  // Both are reset on a correct PIN.
   failedLoginAttempts Int                 @default(0)
   lockedUntil         DateTime?
   // Unused since the parent screens were removed (kept: additive-only policy)
@@ -81,6 +84,7 @@ model User {
   sessions            Session[]
 }
 
+// Written only by POST /api/test/score, which the UI does not call (Testing mode saves no score). Effectively unused.
 model Test {
   id        Int      @id @default(autoincrement())
   score     Int
@@ -151,6 +155,7 @@ model SpellingWord {
   @@index([grade, unitId])
 }
 
+// Nothing in the app writes this table (Spelling Bee results are not saved). Rows are still wiped with a guest seat.
 model SpellingAttempt {
   id        Int      @id @default(autoincrement())
   userId    Int
