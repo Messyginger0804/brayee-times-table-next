@@ -31,7 +31,7 @@ function isMilestone(n) {
 }
 
 // Level up: the modal reserves the stage (no card); otherwise the record card shows
-function levelUpCard(opts?.modal, { show, dismiss, pendingModal }) {
+function levelUpCard(modal, { show, dismiss, pendingModal }) {
   if (!modal) { show('levelUp'); return; }
   dismiss();
   reserveModal(pendingModal);
@@ -55,6 +55,81 @@ function warm(gif) {
   img.src = gif.webp;
 }
 
+/** The feedback API handed to game screens: decides what each event shows and drives the 3D scene via gameFx. */
+function buildFeedbackApi({ show, preload, dismiss, playIntro, lastShownAt, pendingModal }) {
+  return {
+    /**
+     * Session started (entering a game mode / first menu view).
+     * With `intro: true` the Ready-set-go overlay plays first and a Promise is returned that resolves
+     * when it finishes or is skipped; the round must not start before then. Otherwise returns undefined.
+     */
+    startSession({ withGif = true, intro: withIntro = false } = {}) {
+      gameFx.reset({ silent: withIntro });
+      preload('celebrate');
+      if (withIntro) return playIntro();
+      if (withGif) show('welcome');
+      return undefined;
+    },
+    /** Play only the Ready-set-go overlay (no reset, no GIF). Resolves when it finishes or is skipped. */
+    playIntro,
+    /**
+     * Correct answer. `streak` is the new streak count; `setComplete` / `newBest` trigger levelUp.
+     * Returns which GIF category (if any) was shown.
+     */
+    correct({ streak = 0, setComplete = false, newBest = false, moment } = {}) {
+      gameFx.correct(moment);
+      let cat = null;
+      if (setComplete || newBest) cat = 'levelUp';
+      else if (isMilestone(streak)) cat = 'streak';
+      else if (cooledDown(lastShownAt.current) && Math.random() < GIF_SETTINGS.celebrateChance) cat = 'celebrate';
+      if (cat) show(cat, { n: streak });
+      if (cat === 'streak') gameFx.emit('streak', { n: streak });
+      else if (cat === 'levelUp') gameFx.emit('levelUp');
+      // Preload the milestone GIF one step ahead
+      const next = streak + 1;
+      if (isMilestone(next)) preload('streak');
+      return cat;
+    },
+    wrong({ moment } = {}) {
+      // Encouragement is always shown on a miss, it matters more than the cooldown.
+      // Show first so the astronaut's bubble knows the GIF text and picks a different line.
+      show('tryAgain');
+      gameFx.wrong(moment);
+      return 'tryAgain';
+    },
+    /**
+     * Level up. With `modal: true` the caller is about to open the level-up/mastery modal: reserve the stage now
+     * (no GIF card, no astronaut bubble, not even for a frame) and let the modal take it over; the confetti still plays.
+     */
+    levelUp(opts) {
+      levelUpCard(opts?.modal, { show, dismiss, pendingModal });
+      gameFx.emit('levelUp');
+    },
+    preload,
+    dismiss,
+  };
+}
+
+/** Picks the next GIF per category (never the one just shown) and warms it ahead of time. */
+function useGifPicker() {
+  const queue = useRef({}); // category -> next entry (already preloading)
+  const recent = useRef({}); // category -> last shown id (avoid repeats)
+  const choose = useCallback((cat) => {
+    const list = GIFS[cat] || [];
+    if (!list.length) return null;
+    const pool = list.length > 1 ? list.filter((g) => g.id !== recent.current[cat]) : list;
+    return pick(pool);
+  }, []);
+  const preload = useCallback((cat) => {
+    if (saveDataOn()) return;
+    if (!queue.current[cat]) queue.current[cat] = choose(cat);
+    if (queue.current[cat]) warm(queue.current[cat]);
+  }, [choose]);
+  const next = useCallback((cat) => queue.current[cat] || choose(cat), [choose]);
+  const markShown = useCallback((cat, gif) => { queue.current[cat] = null; recent.current[cat] = gif.id; }, []);
+  return { next, markShown, preload };
+}
+
 /**
  * Central place for "what happened -> what do we show". Game screens call correct()/wrong()/etc.
  * and this decides whether a GIF appears (chance, cooldown, milestones), drives the 3D scene via
@@ -63,25 +138,12 @@ function warm(gif) {
 export function GifProvider({ children }) {
   const [active, setActive] = useState(null);
   const [slotEl, setSlotEl] = useState(null); // <GifSlot/> in the current screen, if any
-  const queue = useRef({});          // category -> next entry (already preloading)
-  const recent = useRef({});         // category -> last shown id (avoid repeats)
   const lastShownAt = useRef(0);
   const timer = useRef(null);
   const release = useRef(null);     // gives the director's slot back when the card goes away
   const pendingModal = useRef(null);
 
-  const choose = useCallback((cat) => {
-    const list = GIFS[cat] || [];
-    if (!list.length) return null;
-    const pool = list.length > 1 ? list.filter((g) => g.id !== recent.current[cat]) : list;
-    return pick(pool);
-  }, []);
-
-  const preload = useCallback((cat) => {
-    if (saveDataOn()) return;
-    if (!queue.current[cat]) queue.current[cat] = choose(cat);
-    if (queue.current[cat]) warm(queue.current[cat]);
-  }, [choose]);
+  const { next, markShown, preload } = useGifPicker();
 
   const dismiss = useCallback(() => {
     clearTimeout(timer.current);
@@ -90,14 +152,13 @@ export function GifProvider({ children }) {
   }, []);
 
   const show = useCallback((cat, { n } = {}) => {
-    const gif = queue.current[cat] || choose(cat);
+    const gif = next(cat);
     if (!gif) return;
     // One big moment at a time: a modal (or a higher-ranked card) holding the stage drops this card, no backlog
     // (a displaced card's release is a no-op, so dismiss doubles as the preempt handler)
     release.current = director.claim(GIF_KIND[cat], dismiss);
     if (!release.current) return;
-    queue.current[cat] = null;
-    recent.current[cat] = gif.id;
+    markShown(cat, gif);
     lastShownAt.current = Date.now();
     const message = pick(GIF_MESSAGES[cat]).replace('{n}', String(n ?? ''));
     setActive({ key: Date.now(), cat, gif, message });
@@ -105,7 +166,7 @@ export function GifProvider({ children }) {
     timer.current = setTimeout(dismiss, GIF_SETTINGS.dismissMs);
     // get the following one ready in the background
     setTimeout(() => preload(cat), 600);
-  }, [choose, preload, dismiss]);
+  }, [next, markShown, preload, dismiss]);
 
   useEffect(() => () => { clearTimeout(timer.current); clearTimeout(pendingModal.current); }, []);
 
@@ -117,59 +178,10 @@ export function GifProvider({ children }) {
     return () => clearTimeout(t);
   }, [preload]);
 
-  const api = useMemo(() => {
-    return {
-      /**
-       * Session started (entering a game mode / first menu view).
-       * With `intro: true` the Ready-set-go overlay plays first and a Promise is returned that resolves
-       * when it finishes or is skipped; the round must not start before then. Otherwise returns undefined.
-       */
-      startSession({ withGif = true, intro: withIntro = false } = {}) {
-        gameFx.reset({ silent: withIntro });
-        preload('celebrate');
-        if (withIntro) return playIntro();
-        if (withGif) show('welcome');
-        return undefined;
-      },
-      /** Play only the Ready-set-go overlay (no reset, no GIF). Resolves when it finishes or is skipped. */
-      playIntro,
-      /**
-       * Correct answer. `streak` is the new streak count; `setComplete` / `newBest` trigger levelUp.
-       * Returns which GIF category (if any) was shown.
-       */
-      correct({ streak = 0, setComplete = false, newBest = false, moment } = {}) {
-        gameFx.correct(moment);
-        let cat = null;
-        if (setComplete || newBest) cat = 'levelUp';
-        else if (isMilestone(streak)) cat = 'streak';
-        else if (cooledDown(lastShownAt.current) && Math.random() < GIF_SETTINGS.celebrateChance) cat = 'celebrate';
-        if (cat) show(cat, { n: streak });
-        if (cat === 'streak') gameFx.emit('streak', { n: streak });
-        else if (cat === 'levelUp') gameFx.emit('levelUp');
-        // Preload the milestone GIF one step ahead
-        const next = streak + 1;
-        if (isMilestone(next)) preload('streak');
-        return cat;
-      },
-      wrong({ moment } = {}) {
-        // Encouragement is always shown on a miss, it matters more than the cooldown.
-        // Show first so the astronaut's bubble knows the GIF text and picks a different line.
-        show('tryAgain');
-        gameFx.wrong(moment);
-        return 'tryAgain';
-      },
-      /**
-       * Level up. With `modal: true` the caller is about to open the level-up/mastery modal: reserve the stage now
-       * (no GIF card, no astronaut bubble, not even for a frame) and let the modal take it over; the confetti still plays.
-       */
-      levelUp(opts) {
-        levelUpCard(opts?.modal, { show, dismiss, pendingModal });
-        gameFx.emit('levelUp');
-      },
-      preload,
-      dismiss,
-    };
-  }, [preload, show, dismiss, playIntro]);
+  const api = useMemo(
+    () => buildFeedbackApi({ show, preload, dismiss, playIntro, lastShownAt, pendingModal }),
+    [show, preload, dismiss, playIntro],
+  );
 
   return (
     <FeedbackContext.Provider value={api}>
