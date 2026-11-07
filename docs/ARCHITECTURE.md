@@ -185,7 +185,7 @@ Pure JavaScript in `lib/curriculum/math` (no UI, DB or network): 79 skills and 2
 App glue:
 
 - `lib/mathSkills.js`: flattens the spec; `LEVEL_ADVANCE_WINDOW = 10` (last 10 answers at a non-final level decide the level-up) and `WINDOW_DEFAULT = 20` (final level: last 20 decide mastery). A correct answer counts only if it is also within the skill's `secondsPerProblem` using the measured `ms`.
-- `lib/skillState.js`: builds per-user state for `GET /api/curriculum/me`. A skill unlocks if it is first in its grade, already mastered, already attempted, or the previous skill in the same grade is mastered.
+- `lib/skillState.js`: builds per-user state for `GET /api/curriculum/me`. A skill unlocks if it is first in its grade, already mastered, already attempted, the previous skill in the same grade is mastered, or it was unlocked before. Unlocks are stored in `SkillUnlock` (one extra read per request; new ones are written with an idempotent `createMany`, through `writeAs` so a wiped guest seat cannot receive them) and are permanent until the player's progress is wiped.
 - Six times-table skills (`lib/problemSkills.js`) are backed by the 144 `Problem` rows (`UserProblem` / `Attempt`) instead of generators; `POST /api/math/attempt` rejects them with 400. A fact is mastered after 3 correct answers in a row (`lib/mastery.js`); any miss clears it.
 - Spelling content: authored in `docs/curriculum/spelling.json`, imported into `SpellingWord` by `npm run db:import-spelling`. The API falls back to the bundled `lib/spellingWords.json` (54 words) if the table is empty or unreachable.
 

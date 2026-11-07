@@ -4,7 +4,7 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 
 | # | Issue | Area | Severity |
 |---|---|---|---|
-| 1 | [Missions re-lock after a miss on a shared fact](#1-missions-re-lock-after-a-miss-on-a-shared-fact) | Learning logic | High (Decided 2026-11-07) |
+| 1 | [Missions re-lock after a miss on a shared fact](#1-missions-re-lock-after-a-miss-on-a-shared-fact) | Learning logic | Resolved |
 | 2 | [Account lockout can be triggered by anyone](#2-account-lockout-can-be-triggered-by-anyone) | Availability | Medium (Decided 2026-11-07) |
 | 3 | [Guest seats can be exhausted or taken over](#3-guest-seats-can-be-exhausted-or-taken-over) | Availability | Medium |
 | 4 | [Curriculum docs disagree with the level-advance code](#4-curriculum-docs-disagree-with-the-level-advance-code) | Docs drift | Resolved |
@@ -18,20 +18,15 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 
 ## 1. Missions re-lock after a miss on a shared fact
 
-**Status: Decided 2026-11-07.** Fix by persisting unlocks (an additive Prisma migration) in a separate follow-up change. Until then the bug stands.
+**Status: Resolved by the persisted-unlocks change (decided 2026-11-07).** Unlocks are now stored per player in `SkillUnlock` and never removed, so a later miss cannot lock a mission again. The unlock rule (previous skill mastered) is unchanged and was deliberately not loosened. Existing players are backfilled the first time their map loads after deploy. The text below is kept for history.
 
 **Where:** `lib/skillState.js` (unlock rule), `app/api/problems/[id]/attempt/route.js` (clears `UserProblem.mastered` on any miss).
 
-**What happens:** For the times-table missions that are backed by `Problem` rows, a skill counts as mastered only while every fact in it is currently mastered, and the next mission unlocks only while the previous one is mastered. The "has attempts" fallback cannot apply because these skills have no `progress` record. Several consecutive grade 3 missions share facts (for example 3 x 2 is in two of them). One miss clears that fact's `mastered` flag, so the earlier mission stops being mastered and the later one locks again.
+**What happened:** For the times-table missions backed by `Problem` rows, a skill counts as mastered only while every fact in it is currently mastered, and the next mission unlocked only while the previous one was mastered. Several consecutive grade 3 missions share facts (for example 3 x 2 is in two of them). One miss cleared that fact's `mastered` flag, so the earlier mission stopped being mastered and the later one locked again.
 
-**Impact:** Braylee can finish a mission, unlock the next, miss one shared fact while playing it, and see the mission she is playing show as locked on the map. Progress is not lost, but the map is confusing and discouraging.
+**Impact was:** Braylee could finish a mission, unlock the next, miss one shared fact while playing it, and see the mission she was playing show as locked on the map.
 
-**Options:**
-1. Make unlocking sticky: give problem-backed skills a real attempt count so the existing "already has attempts" rule applies.
-2. Unlock on an "ever mastered" signal (all facts `everCorrect`, or a stored unlock timestamp) and keep the strict `mastered` only for display.
-3. Leave as is.
-
-**Recommended:** Option 2. It needs no schema change if `everCorrect` is used, keeps the display honest, and is simple to test (master set A, unlock B, miss an overlapping fact, expect B still unlocked).
+**Options considered:** (1) real attempt counts for problem-backed skills; (2) unlock on an "ever mastered" signal such as `everCorrect`; (3) leave as is. The owner chose to persist unlocks instead of loosening the gate.
 
 ## 2. Account lockout can be triggered by anyone
 

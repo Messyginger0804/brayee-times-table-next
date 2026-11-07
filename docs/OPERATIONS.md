@@ -95,6 +95,8 @@ If the code is deployed before its migrations, the API answers HTTP 503 with `{"
 
 Never use `prisma db push`, `prisma migrate dev` or `prisma migrate reset` against production.
 
+Note for the persisted-unlocks release (`20260701000000_add_skill_unlock`): it only adds the `SkillUnlock` table, so the steps above apply unchanged. Expect `SkillUnlock` to be empty after step 4; rows appear as players open their mission map (the first load backfills every mission that is open at that moment). Run the migration before the deploy. If the code ships first, `GET /api/curriculum/me` degrades to the old unlock behaviour (it treats the missing `SkillUnlock` table as empty and writes nothing) instead of failing, but missions can still re-lock until the migration is applied.
+
 ### Rollback
 
 - **Code**: promote or redeploy the previous Vercel build. Because migrations are additive, the older build ignores new columns and tables.
@@ -158,7 +160,7 @@ If this keeps happening with no one at the keyboard, someone may be guessing PIN
 
 ### Account cleanup script
 
-`npm run db:cleanup-accounts` is the one-time script from the account-model change. It keeps `Braylee`, merges a fixed list of her alternate accounts into it, and deletes every other non-guest user. Default is a dry run that rolls back; `--confirm` writes in one transaction; a non-localhost `DATABASE_URL` requires `--i-have-a-backup`. Do not run it again unless you know why. Its output lists real user names, so keep it out of public places.
+`npm run db:cleanup-accounts` is the one-time script from the account-model change. It keeps `Braylee`, merges a fixed list of her alternate accounts into it, and deletes every other non-guest user (the merged accounts' `SkillUnlock` rows are unioned into Braylee's first). Default is a dry run that rolls back; `--confirm` writes in one transaction; a non-localhost `DATABASE_URL` requires `--i-have-a-backup`. Do not run it again unless you know why. Its output lists real user names, so keep it out of public places.
 
 ## Backups and restore
 

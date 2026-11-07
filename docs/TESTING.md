@@ -40,7 +40,7 @@ Tests do not need a database, a network or a running server, except the one gate
 
 ## Which tests need Postgres
 
-Only `tests/guestWrite.pg.test.js`. It proves the `FOR SHARE` lock in `lib/guestWrite.js` and the row lock in `wipeSeat` exclude each other, which mocks cannot show.
+Only `tests/guestWrite.pg.test.js`. It also covers persisted mission unlocks (`SkillUnlock`: persist, idempotence, lost-seat write, seat wipe, cascade; those tests are skipped, with a console warning, unless `DATABASE_URL` equals `TEST_DATABASE_URL`). It proves the `FOR SHARE` lock in `lib/guestWrite.js` and the row lock in `wipeSeat` exclude each other, which mocks cannot show.
 
 - It is declared with `describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))`, where `url = process.env.TEST_DATABASE_URL`. So it runs only when `TEST_DATABASE_URL` is set **and** points at localhost or 127.0.0.1. A remote URL always skips; this is a safety guard so it never touches production.
 - The database must already be migrated. The test creates and deletes its own temporary guest user.

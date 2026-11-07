@@ -12,6 +12,7 @@ erDiagram
   User ||--o{ SpellingAttempt : has
   User ||--o{ MathSkillProgress : has
   User ||--o{ MathAttempt : has
+  User ||--o{ SkillUnlock : has
   User ||--o{ Account : "next-auth"
   User ||--o{ Session : "next-auth"
   Problem ||--o{ Attempt : has
@@ -29,7 +30,7 @@ erDiagram
 |---|---|---|
 | `User` | Braylee's real account and the guest seats | `name` (unique; `Braylee`, or `Guest 001`...), `pin` (bcrypt hash, null for guests), `image` (public path), `level` (times-table level 1 or 2), `grade` (1-6 or null), `failedLoginAttempts` / `lockedUntil` (PIN lockout), `isGuest`, `guestSeat` (unique), `guestTokenHash` (unique sha256 of the cookie secret; null = free seat), `lastActiveAt` (drives the 7-day idle wipe) |
 
-Deleting a user cascades to `UserProblem`, `SpellingAttempt`, `MathSkillProgress`, `MathAttempt`, `Account` and `Session`. `Attempt` and `Test` do not cascade (the database sets `Attempt.userId` to null on user delete, and `Test` rows block the delete); the guest wipe (`wipeSeat` in `lib/guests.js`) deletes rows from `attempt`, `test`, `spellingAttempt`, `mathAttempt`, `mathSkillProgress` and `userProblem` explicitly, in one transaction with the seat reset.
+Deleting a user cascades to `UserProblem`, `SpellingAttempt`, `MathSkillProgress`, `MathAttempt`, `SkillUnlock`, `Account` and `Session`. `Attempt` and `Test` do not cascade (the database sets `Attempt.userId` to null on user delete, and `Test` rows block the delete); the guest wipe (`wipeSeat` in `lib/guests.js`) deletes rows from `attempt`, `test`, `spellingAttempt`, `mathAttempt`, `mathSkillProgress`, `userProblem` and `skillUnlock` explicitly, in one transaction with the seat reset.
 
 ### Times tables
 
@@ -45,6 +46,7 @@ Deleting a user cascades to `UserProblem`, `SpellingAttempt`, `MathSkillProgress
 | Model | Purpose | Fields that matter |
 |---|---|---|
 | `MathSkillProgress` | One row per player and skill. Unique `(userId, skillId)` | `levelIndex` (0-based into the skill's levels), `recent` (JSON array `[{ c: boolean, ms: number }]`, oldest first, capped at the skill's window, 20 by default; cleared when the level advances), `attempts`, `correct`, `mastered`, `masteredAt` |
+| `SkillUnlock` | One row per player and mission (any skill id, generated or times-table) that has been unlocked. Unique `(userId, skillId)`, FK to `User` with `ON DELETE CASCADE`. Permanent: nothing deletes a row except a progress wipe (guest `wipeSeat`, user delete, the account cleanup script). Written idempotently (`createMany` with `skipDuplicates`) by `lib/skillState.js` whenever a skill is open but not yet stored, which also backfills existing players on their first load | `skillId`, `unlockedAt` |
 | `MathAttempt` | Append-only log of every generated-problem answer | `skillId`, `levelIndex`, `prompt`, `expected`, `given`, `correct`, `ms` |
 
 The six times-table skills (`g3-mult-0-1-2-5-10`, `g3-mult-3-4`, `g3-mult-9-squares`, `g3-mult-6-7-8`, `g3-mult-mixed`, `g4-mult-11-15`) use the `Problem` / `UserProblem` tables instead and have no rows here.
@@ -89,6 +91,7 @@ Migrations live in `prisma/migrations/<timestamp>_<name>/migration.sql`.
 | `20260401000000_add_grade_and_math_progress` | `User.grade`, `SpellingWord.grade`/`unitId`/`tier`/`syllables`/`source` and indexes, tables `MathSkillProgress` and `MathAttempt` |
 | `20260501000000_add_math_unlocked_by_parent` | `MathSkillProgress.unlockedByParent` |
 | `20260601000000_add_guest_seats` | `User.isGuest`, `guestSeat` (unique), `guestTokenHash` (unique), `lastActiveAt` |
+| `20260701000000_add_skill_unlock` | Table `SkillUnlock` (unique `(userId, skillId)`, FK to `User` with cascade). Additive only |
 
 Production's migration table also lists two earlier migrations whose source files are not in the repo (`20260129173431_add_login_security`, `20260129174704_add_user_mastery`). Prisma reports them as "not found locally" and carries on. Full adoption steps for production are in [DEPLOY-RUNBOOK.md](DEPLOY-RUNBOOK.md); that document was written for the original adoption, so confirm the current production state with JC before following it.
 
