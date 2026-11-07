@@ -12,7 +12,7 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 | 6 | [No full Content Security Policy](#6-no-full-content-security-policy) | Security | Low |
 | 7 | [Unused `/api/test` routes and the `Test` table](#7-unused-apitest-routes-and-the-test-table) | Dead code | Low |
 | 8 | [Spelling results are never saved](#8-spelling-results-are-never-saved) | Feature gap | Medium |
-| 9 | [Legacy plaintext PIN fallback](#9-legacy-plaintext-pin-fallback) | Security | Low |
+| 9 | [Legacy plaintext and un-peppered student-ID fallbacks](#9-legacy-plaintext-and-un-peppered-student-id-fallbacks) | Security | Low |
 | 10 | [Celebration GIFs load from GIPHY](#10-celebration-gifs-load-from-giphy) | Privacy | Low (Decided 2026-11-07) |
 | 11 | [Adoption runbook ordering](#11-adoption-runbook-ordering) | Ops | Low |
 
@@ -39,23 +39,23 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 
 **Where:** `lib/pinAuth.js` (`claimAttempt`), `/api/auth/login`, `/api/auth/callback/credentials`.
 
-**What happens:** The lockout counts wrong PINs per account, not per person. `failedLoginAttempts` only resets on a correct PIN (it never decays with time), and from 15 failures on, every further wrong PIN re-applies a 30 minute lock. The account name `Braylee` is public (branding and the login form). The per-IP limit (30 per 10 minutes) is in memory and per serverless instance. Unknown names always get 401 while the real account gets 429, so the response also confirms the account exists.
+**What happens:** The lockout counts wrong student IDs per account, not per person. `failedLoginAttempts` only resets on a correct ID (it never decays with time). The tiers escalate (5 wrong = 1 minute, 10 = 5 minutes, 15 = 30 minutes, 20 = 2 hours, 25 or more = 24 hours) and from 25 failures on every further wrong ID re-applies a 24 hour lock. The account name `Braylee` is public (branding), and a saved cadet's nickname is shown to the kid. The per-IP limit (30 per 10 minutes) is in memory and per serverless instance. Since the saved-cadets change, failures are uniform: an unknown name, a wrong ID and a resting account all return the same 401 and message, so the response no longer confirms that an account exists (earlier versions answered 429 for the real account).
 
-**Impact:** Anyone can keep the only real account locked out with about one request every 30 minutes. Recovery is the owner running the unlock SQL in [OPERATIONS.md](OPERATIONS.md#unlock-a-locked-out-account). No data is exposed; this is a denial of service.
+**Impact:** Anyone who knows a name can keep that account locked out, and after enough attempts the lock lasts 24 hours at a time. Recovery is the owner running the unlock SQL in [OPERATIONS.md](OPERATIONS.md#unlock-a-locked-out-account). No data is exposed; this is a denial of service. Recovery is the owner running the unlock SQL in [OPERATIONS.md](OPERATIONS.md#unlock-a-locked-out-account). No data is exposed; this is a denial of service.
 
 **Options:**
 1. Decay `failedLoginAttempts` after a quiet period and do not extend the lock when already at the maximum.
-2. Cap the lock at a short time (for example 60 seconds) and rely on slowing guesses, since a 4-digit PIN with a short cap is still limited by the per-IP throttle.
+2. Cap the lock at a short time (for example 60 seconds) and rely on slowing guesses, since a short student ID with a short cap is still limited by the per-IP throttle.
 3. Add a durable (database or key-value) throttle per name and IP in front of the lockout.
 4. Accept the risk (a child's app with a public name but a small audience).
 
-**Recommended:** Option 1 now (small change, no new infrastructure), option 3 only if abuse is ever seen.
+**Recommended:** Option 1 now (small change, no new infrastructure; matters more now that the lock can reach 24 hours), option 3 only if abuse is ever seen.
 
 ## 3. Guest seats can be exhausted or taken over
 
 **Where:** `/api/guest/claim`, `lib/guests.js`, `lib/rateLimit.js`.
 
-**What happens:** `POST /api/guest/claim` needs no login. Its rate limit (10 per 10 minutes per IP) is in memory and per serverless instance, so it does not hold across instances. A client with no cookie can claim every free seat, and after `GUEST_MIN_IDLE_MINUTES` (default 15) of inactivity a seat can be taken over, which wipes that player's attempts and progress.
+**What happens:** (Saved cadets add a second shared pool: `SAVED_CADETS_MAX`, default 10, limited to 10 saves per IP per 10 minutes, per instance. A script that makes guest sessions can fill it, after which real kids see "spots are taken" and keep playing as guests.) `POST /api/guest/claim` needs no login. Its rate limit (10 per 10 minutes per IP) is in memory and per serverless instance, so it does not hold across instances. A client with no cookie can claim every free seat, and after `GUEST_MIN_IDLE_MINUTES` (default 15) of inactivity a seat can be taken over, which wipes that player's attempts and progress.
 
 **Impact:** A script can leave real kids with "All seats are busy", and can take over a seat whose player paused for 15 minutes (a snack break). The loss is a guest's progress only; Braylee's account is not affected.
 
@@ -88,7 +88,7 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 **Where:** `tests/`, `.github/workflows/ci.yml`.
 
 **What happens:**
-- CI has no Postgres service, so `tests/guestWrite.pg.test.js` (the only real-database concurrency test) is skipped. The `FOR SHARE` and compare-and-set protections are verified only by mocks in CI.
+- CI has no Postgres service, so `tests/guestWrite.pg.test.js` and `tests/savedCadets.pg.test.js` (the real-database tests) are skipped. The `FOR SHARE` and compare-and-set protections, and the saved-cadet save/purge transactions, are verified only by mocks in CI.
 - Routes with no test: `/api/test/score`, `/api/test/best`, `/api/progress/*`, `/api/problems`, `/api/problems/count`, `/api/problems/[id]/last5`. (The purge cron auth gate and `/api/auth/me` are covered by `tests/api/cronAndMe.test.js`.)
 - CI does not run a typecheck.
 
@@ -146,16 +146,16 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 
 **Recommended:** Option 1 if spelling is a core feature; it needs a migration only if the columns change, plus guest-seat-safe writes (use `lib/guestWrite.js` like other guest writes). Until then, treat spelling progress as not saved.
 
-## 9. Legacy plaintext PIN fallback
+## 9. Legacy plaintext and un-peppered student-ID fallbacks
 
-**Where:** `lib/pinAuth.js` (`pinMatches`, `recordSuccess`).
+**Where:** `lib/pinAuth.js` (`pinMatches`, `recordSuccess`, `canRehash`).
 
-**What happens:** If `User.pin` is not a bcrypt hash, login compares it as plain text and, on success, replaces it with a bcrypt hash. This was for old rows. After the account cleanup only `Braylee` has a PIN, and the seed writes a hash, so the fallback should now be dead code.
+**What happens:** If `User.pin` is not a bcrypt hash, sign-in compares it as plain text; if it is a plain (un-peppered) bcrypt hash it is accepted too. On success, in production only (`VERCEL_ENV=production` or `PIN_REHASH=1`), the value is replaced with the peppered hash. The plaintext branch was for old rows. After the account cleanup only `Braylee` has a stored ID and the seed and `db:set-student-id` write plain bcrypt hashes, so the plain-bcrypt branch stays live until her first production sign-in after each reset; the plaintext branch should be dead code.
 
-**Impact:** If a plaintext PIN were ever stored (a manual SQL edit, an old restore), it would be accepted and hashed. Low risk, but the path is unnecessary.
+**Impact:** If a plaintext value were ever stored (a manual SQL edit, an old restore), it would be accepted and hashed. Low risk, but the plaintext path is unnecessary.
 
 **Options:**
-1. Check that `Braylee`'s stored value starts with `$2` (never print it), then remove the plaintext branch and its tests.
+1. Check that `Braylee`'s stored value starts with `$2` (never print it), then remove the plaintext branch and its tests. Keep the plain-bcrypt branch: the script and seed rely on it.
 2. Keep it as a harmless upgrade path.
 
 **Recommended:** Option 1 after confirming the production row is hashed.
@@ -179,7 +179,7 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 
 ## 11. Adoption runbook ordering
 
-**Where:** [DEPLOY-RUNBOOK.md](DEPLOY-RUNBOOK.md) step 6.
+**Where:** [DEPLOY-RUNBOOK.md](DEPLOY-RUNBOOK.md) step 6. (The runbook also has Braylee's 4-digit PIN stop working at the deploy until step 9 sets her student ID, so there is a short window where she cannot sign in.)
 
 **What happens:** The one-time runbook runs the irreversible account cleanup (deletes every non-Braylee user) before the new code is merged and verified. If the merge or build then fails, the users are already gone and the old code is still live. The only undo is the pre-migration dump.
 
@@ -195,5 +195,6 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 
 - `vercel.json` still lists `ui-overhaul` under `git.deploymentEnabled`. Harmless; delete it when next touching that file.
 - `isAdmin` (on `User`) and `MathSkillProgress.unlockedByParent` are unused leftovers from the removed parent screen. They are kept so no migration is needed.
+- A saved cadet has no self-service way to recover a forgotten student ID or to be renamed; only the owner can reset it with `npm run db:set-student-id`. Choosing a nickname that is already taken is reported to the kid ("Someone already has that name"), which also reveals that a saved cadet with that name exists.
 - Per-IP rate limits are best effort only (in memory, per serverless instance). A Vercel Firewall rule is the only hard limit.
 - The next-auth Prisma tables (`Account`, `Session`, `VerificationToken`) exist but stay empty because sessions are JWTs.

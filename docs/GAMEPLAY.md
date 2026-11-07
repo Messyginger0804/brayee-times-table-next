@@ -8,7 +8,7 @@ Related: [Development](DEVELOPMENT.md), [Data model](DATA-MODEL.md), [Math curri
 
 | Area | What it is | Where it lives |
 |---|---|---|
-| Sign-in | Braylee's 4-digit PIN, or a guest "cadet" seat | `/login` |
+| Sign-in | A guest "cadet" seat, or a name + Student ID (Braylee, or a saved cadet) | `/login` |
 | Grade picker | Pick 1st-6th grade; decides which missions and spelling words show | home `/` |
 | Mission map | Planets, one per math skill in the chosen grade | home `/` |
 | Memorize | Flash cards for times tables, no grading | home `/` (mode state, not a route) |
@@ -21,10 +21,13 @@ Memorize, Practice and Testing are not separate routes; they are screens inside 
 
 ## Signing in
 
-There is no sign-up. Two ways in:
+There is no sign-up. Three kinds of player:
 
-- **Braylee's PIN.** "Are you Braylee?" opens a 4-digit field (digits only). The account name is fixed to `Braylee`. Her photo shows in the helmet and her progress is her own. The PIN is set when the database is seeded (`SEED_BRAYLEE_PIN`, see [DEVELOPMENT.md](DEVELOPMENT.md)); it is never in the repo. After 5 wrong tries in a row the PIN rests for 1 minute, after 10 for 5 minutes, after 15 or more for 30 minutes, with a friendly "take a short break" message. There is also a limit of 30 PIN attempts per IP address per 10 minutes.
 - **Play as Guest.** Guests get an anonymous "cadet seat". No name, no photo, nothing personal is collected.
+- **Saved cadet.** A guest can keep their progress by tapping **Save my cadet** on the home screen (guests only). They pick a cadet name (2-16 letters, numbers, spaces, `'` or `-`; names reserved by the game and rude words are refused, and the name must not already be taken) and type a **Student ID** twice. The ID is 5 to 8 digits (the sign-in form describes it as "the 5-8 digit number you use for lunch at school"). The same seat becomes their account, so everything they already did is kept, and they are signed in as that cadet. Only a limited number of spots exist (`SAVED_CADETS_MAX`, default 10); when they are full the kid is told so and keeps playing as a guest. Next time they tap **Are you a saved cadet? Sign in** on the login screen and enter name and Student ID. A saved cadet who does not play for 30 days (`SAVED_CADET_RETENTION_DAYS`) is deleted with all their progress.
+- **Braylee.** She uses the same "Are you a saved cadet? Sign in" form with the name `Braylee` and her Student ID (5-8 digits; the old 4-digit PIN no longer works). Her photo shows in the helmet and her progress is her own. Her initial value is set when the database is seeded (`SEED_BRAYLEE_PIN`, see [DEVELOPMENT.md](DEVELOPMENT.md)) or with `npm run db:set-student-id`; it is never in the repo.
+
+Sign-in safety: the ID field is masked and password managers are told to ignore it. After 5 wrong tries in a row an account rests for 1 minute, after 10 for 5 minutes, 15 for 30 minutes, 20 for 2 hours and 25 or more for 24 hours. A wrong name, a wrong ID and a resting account all show the same message ("That didn't work. Check your name and student ID, or try again in a little while."), so nobody can tell which names exist. There is also a limit of 30 sign-in attempts per IP address per 10 minutes, answered with a "take a short break" message.
 
 ### Cadet seats (guests)
 
@@ -143,9 +146,9 @@ Before Practice, Testing, a Skill mission and a Spelling round, a full-screen "G
 
 | Data | Where | Notes |
 |---|---|---|
-| Account, grade, times-table level | Server database (`User`) | Braylee's PIN is stored as a bcrypt hash. |
+| Account, grade, times-table level | Server database (`User`) | Braylee's and saved cadets' Student IDs are stored only as peppered bcrypt hashes. Saved cadets are deleted after 30 idle days. |
 | Guest seat | Server database + httpOnly `guest_seat` cookie | Only a hash of the cookie secret is stored. Wiped after 7 idle days. |
-| Session | NextAuth JWT cookie | Carries the user id (and a hashed seat key for guests). |
+| Session | NextAuth JWT cookie | Carries the user id (a hashed seat key for guests, a saved-cadet flag for saved cadets). |
 | Times-table attempts and mastery | Server (`Attempt`, `UserProblem`, `Problem`) | Last 5 attempts per fact per player. |
 | Math mission progress | Server (`MathSkillProgress`, `MathAttempt`) | Current level, rolling window, mastered flag. |
 | Test score | Nowhere | Shown on screen only. |
@@ -160,6 +163,6 @@ Storage access is wrapped so private browsing or blocked storage falls back to d
 ## For parents
 
 - There is no parent screen. A child chooses their own grade and can change it any time.
-- Guests are anonymous; use Braylee's account for named progress and her photo.
-- A guest's progress stays on the device that holds the seat and is deleted after 7 days without play.
+- Guests are anonymous. A child who wants to keep their progress can save their cadet (a nickname plus a Student ID); use Braylee's account for her photo and named progress.
+- A guest's progress stays on the device that holds the seat and is deleted after 7 days without play; a saved cadet's progress is kept for 30 days without play.
 - There is no chat or social feature, and speech runs on the device.

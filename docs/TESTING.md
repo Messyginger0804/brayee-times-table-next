@@ -30,23 +30,23 @@ Tests do not need a database, a network or a running server, except the one gate
 
 | Path | What is in it |
 |---|---|
-| `tests/*.test.js` | Library and logic tests: PIN auth and lockout, rate limiter, guests, cookies, drill attempts, auth logic, manifest, icons, security headers, `vercel.json`. |
+| `tests/*.test.js` | Library and logic tests: student-ID auth and lockout, saved cadets (`savedCadets`, `savedCadetGuard`, `cadetNames`, `setStudentIdGuards`), rate limiter, guests, cookies, drill attempts, auth logic, manifest, icons, security headers, `vercel.json`. |
 | `tests/*.test.jsx` | jsdom component tests: modal focus trap and a11y (`uiA11y`), avatar and bubble components, voice settings focus. |
 | `tests/api/*.test.js` | Route handler tests. Call the exported `GET`/`POST` directly with a `Request`. |
 | `tests/api/helpers.js` | `jsonReq(body, url?, method?)` and `getReq(url?)` request builders. |
 | `tests/lib/` | More `lib/` unit tests (auth, avatar, voice, skill state, problem skills, and so on). |
 | `tests/curriculum/` | Curriculum generators, answer checking, mastery rules (`math.mastery.test.js`); `helpers.js` is shared. |
-| `tests/guestWrite.pg.test.js` | Real-Postgres concurrency test. Gated, see below. |
+| `tests/guestWrite.pg.test.js`, `tests/savedCadets.pg.test.js` | Real-Postgres tests (guest write vs wipe; saving, retention purge and lockout of saved cadets). Gated, see below. |
 
 ## Which tests need Postgres
 
-Only `tests/guestWrite.pg.test.js`. It proves the `FOR SHARE` lock in `lib/guestWrite.js` and the row lock in `wipeSeat` exclude each other, which mocks cannot show.
+Two files: `tests/guestWrite.pg.test.js` and `tests/savedCadets.pg.test.js`. The first proves the `FOR SHARE` lock in `lib/guestWrite.js` and the row lock in `wipeSeat` exclude each other, which mocks cannot show. The second runs `saveCadet`, `purgeInactiveSaved` and `verifyPin` against real rows; its rows are named with the prefix `pgt-` and removed afterwards.
 
-- It is declared with `describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))`, where `url = process.env.TEST_DATABASE_URL`. So it runs only when `TEST_DATABASE_URL` is set **and** points at localhost or 127.0.0.1. A remote URL always skips; this is a safety guard so it never touches production.
-- The database must already be migrated. The test creates and deletes its own temporary guest user.
+- Each is declared with `describe.skipIf(!url || !/localhost|127\.0\.0\.1/.test(url))`, where `url = process.env.TEST_DATABASE_URL`. So it runs only when `TEST_DATABASE_URL` is set **and** points at localhost or 127.0.0.1. A remote URL always skips; this is a safety guard so it never touches production.
+- The database must already be migrated. The tests create and delete their own temporary rows.
 - The file header also says `DATABASE_URL` should point at the same database.
-- To run it locally: start the compose DB (`docker compose up -d db`), migrate it (`npm run db:migrate`), then run with both variables set to the local URL, for example `TEST_DATABASE_URL=<local url> DATABASE_URL=<local url> npx vitest run tests/guestWrite.pg.test.js`. Use the credentials from your own `.env.docker`; do not paste real values into docs.
-- CI has no Postgres service, so this test is skipped in CI (the normal run reports "1 skipped" file). See [KNOWN-ISSUES.md](KNOWN-ISSUES.md).
+- To run it locally: start the compose DB (`docker compose up -d db`), migrate it (`npm run db:migrate`), then run with both variables set to the local URL, for example `TEST_DATABASE_URL=<local url> DATABASE_URL=<local url> npx vitest run tests/guestWrite.pg.test.js tests/savedCadets.pg.test.js`. Never point these at the production database or at the docker `db` (port 55436) holding real data; use a separate throw-away local database. Use the credentials from your own `.env.docker`; do not paste real values into docs.
+- CI has no Postgres service, so this test is skipped in CI (the normal run reports 2 skipped files). See [KNOWN-ISSUES.md](KNOWN-ISSUES.md).
 
 All other DB-touching tests mock `lib/prisma` (`vi.mock('../lib/prisma', ...)`).
 
@@ -79,4 +79,4 @@ Run `npm run test:coverage` and read the text summary, or open `coverage/coverag
 - Time-dependent code: pass `now`, or use `vi.useFakeTimers()` and restore in `afterEach`.
 - Tests that must hit a real database follow the `TEST_DATABASE_URL` + localhost `skipIf` pattern above, and clean up the rows they create.
 - No test may call a paid or third-party API or a production system.
-- Do not put real PINs, names or secrets in fixtures.
+- Do not put real student IDs, names or secrets in fixtures. `vitest.config.mjs` sets `NEXTAUTH_SECRET=test-secret` because the student-ID pepper is derived from it.

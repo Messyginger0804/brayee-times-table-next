@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('next/headers', () => ({ cookies: () => ({ get: () => undefined }) })); // the guest branch reads the resume cookie
 vi.mock('../../lib/prisma', () => ({ prisma: { user: { findUnique: vi.fn() } } }));
 vi.mock('../../app/api/_utils', () => ({ getUserId: vi.fn() }));
 import { prisma } from '../../lib/prisma';

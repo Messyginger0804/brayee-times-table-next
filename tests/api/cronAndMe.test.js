@@ -10,6 +10,8 @@ vi.mock('../../lib/guests', async () => {
   return { ...actual, purgeExpired: vi.fn() };
 });
 
+vi.mock('../../lib/savedCadetPurge', () => ({ purgeInactiveSaved: vi.fn().mockResolvedValue(0) }));
+
 import { prisma } from '../../lib/prisma';
 import { getUserId } from '../../app/api/_utils';
 import { GUEST_COOKIE, hashToken, purgeExpired, validateGuestSession } from '../../lib/guests';
@@ -41,7 +43,7 @@ describe('GET /api/cron/purge-guests auth gate', () => {
     purgeExpired.mockResolvedValue(2);
     const res = await cronGET(cronReq(`Bearer ${SECRET}`));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ purged: 2 });
+    expect(await res.json()).toEqual({ purged: 2, purgedSaved: 0 });
   });
 });
 

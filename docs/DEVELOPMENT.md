@@ -57,21 +57,22 @@ Production migrations are manual and run before the merge; they are not applied 
 `npm run db:seed` runs `prisma/seed.js`, which is idempotent:
 
 - Creates the 144 times-table `Problem` rows (1-12 x 1-12) if the table is empty.
-- Creates the user `Braylee` if she does not exist (`prisma/seed-users.js`). An existing user is never changed, so re-running cannot overwrite a PIN.
+- Creates the user `Braylee` if she does not exist (`prisma/seed-users.js`). An existing user is never changed, so re-running cannot overwrite a student ID.
 
-Braylee's PIN comes from `SEED_BRAYLEE_PIN`:
+Braylee's initial student ID comes from `SEED_BRAYLEE_PIN`:
 
-- Set it to exactly 4 digits to choose the PIN. Any other non-empty value makes the seed fail; an empty value counts as unset.
-- Leave it unset to get a random PIN, printed once to the seed's output (for the compose stack: `docker compose logs app`) only when the user row is created. If you miss it, reset the database volume or update the user's hash by hand.
-- No PIN is stored in source. Do not put a real PIN in a committed file, issue or PR.
+- Set it to 5 to 8 digits to choose the ID (sign-in only accepts 5-8 digits). Any other non-empty value makes the seed fail; an empty value counts as unset.
+- Leave it unset to get a random ID, printed once to the seed's output (for the compose stack: `docker compose logs app`) only when the user row is created. If you miss it, reset the database volume or run `npm run db:set-student-id -- --name Braylee` (hidden prompt; the script refuses a non-localhost database without `--i-have-a-backup`).
+- No student ID is stored in source. Do not put a real one in a committed file, issue or PR.
+- Student IDs are hashed with a pepper derived from `NEXTAUTH_SECRET`; tests set a dummy secret in `vitest.config.mjs`. Old-format hashes are only upgraded on sign-in in production (`VERCEL_ENV=production`) or with `PIN_REHASH=1`.
 
 Spelling words are loaded separately: `DATABASE_URL=... npm run db:import-spelling` (add `-- --dry-run` first). It only inserts new words and fills empty fields.
 
-Guest seats (`Guest 001`, ...) are created on demand by the app, not by the seed.
+Guest seats (`Guest 001`, ...) are created on demand by the app, not by the seed. Saved cadets are created by a guest through `POST /api/cadets/save`; `SAVED_CADETS_MAX` and `SAVED_CADET_RETENTION_DAYS` tune them. Validation rules (nickname, 5-8 digit student ID) live in `lib/cadetNames.js`; use `STUDENT_ID_MIN`/`STUDENT_ID_MAX` instead of hard-coding the length.
 
 ## Restoring a production dump locally
 
-Privacy warning: a production dump contains real users' data, including children's progress and PIN hashes. Keep it only in `.backups/` (gitignored), never commit, upload, paste or share it, and delete it when you are done. This repo is public.
+Privacy warning: a production dump contains real users' data, including children's progress and student-ID hashes. Keep it only in `.backups/` (gitignored), never commit, upload, paste or share it, and delete it when you are done. This repo is public.
 
 The dump is Postgres 18 format, so restore with a postgres:18 client. Run from the repo root with the compose `db` service up:
 
@@ -114,7 +115,7 @@ CI (`.github/workflows/ci.yml`) runs lint, tests with coverage, build, and fallo
 - Every write keyed to a user goes through `guestSafe(actor, tx => ...)` from `lib/guestWrite.js`, so a guest whose seat was reassigned cannot write. If `w.lost` is set, return it.
 - Validate input early and return `NextResponse.json({ error }, { status })` with 400 for bad input and 401 when not logged in.
 - Routes that depend on newer migrations catch schema errors with `isSchemaMissing` / `maintenanceResponse` from `lib/dbErrors.js`.
-- The in-memory rate limiter (`lib/rateLimit.js`) is best effort per server instance; the PIN lockout in `lib/pinAuth.js` is the real protection.
+- The in-memory rate limiter (`lib/rateLimit.js`) is best effort per server instance; the student-ID lockout in `lib/pinAuth.js` is the real protection.
 - Comments explain why, not what, and are written in plain sentences. No emoji in docs; the UI itself uses emoji for kid-facing labels.
 - Do not mention coding agents in commit or PR messages.
 - Never call paid or metered model APIs from app code or tests. Voice uses the browser's speech engine only.
