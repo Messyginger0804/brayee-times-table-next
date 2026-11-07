@@ -101,11 +101,13 @@ describe('verifyPin', () => {
     expect(results.every((r) => !r.ok && r.status === 401 && r.error === FAIL_MESSAGE)).toBe(true);
   });
 
-  it('upgrades a legacy plaintext PIN to a bcrypt hash on success', async () => {
+  it('upgrades a legacy plaintext PIN to a bcrypt hash on success (production only)', async () => {
+    process.env.VERCEL_ENV = 'production';
     state.users[0].pin = '1234';
     const r = await verifyPin('Tester', '1234');
     expect(r.ok).toBe(true);
     expect(isHashed(state.users[0].pin)).toBe(true);
+    delete process.env.VERCEL_ENV;
   });
 
   it('per-IP limit blocks a client that rotates through names', async () => {

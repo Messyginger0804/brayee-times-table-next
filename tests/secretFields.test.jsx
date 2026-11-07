@@ -33,7 +33,9 @@ describe('secret number fields must not look like credentials (password managers
     expect(html).toMatch(/class="secret-mask /);
     expect(html).not.toMatch(/type="password"/);
     let got = null;
-    SecretInput({ id: 'x', value: '', onChange: (v) => { got = v; } }).props.onChange({ target: { value: '12a3456' } });
+    SecretInput({ id: 'x', value: '', onChange: (v) => { got = v; } }).props.children[0].props.onChange({ target: { value: '12a3456' } });
+    expect(html).toMatch(/aria-describedby="x-hint"/);
+    expect(html).toMatch(/<span id="x-hint" class="sr-only">Secure entry/);
     expect(got).toBe('12345');
   });
 

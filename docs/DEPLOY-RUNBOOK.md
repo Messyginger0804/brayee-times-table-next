@@ -162,6 +162,8 @@ Behaviour: a saved cadet's progress stays on the seat's own row (`id` unchanged)
 
 New hashes are `bcrypt(HMAC-SHA256(pepper, secret))`. The pepper is derived from `NEXTAUTH_SECRET` with HKDF (fixed label `pin-pepper-v1`), so there is nothing new to set in production and the key never touches the database or its backups. Verification tries the peppered hash first, then the old plain bcrypt, then legacy plaintext; a row in an older format is rehashed with the pepper on its next successful sign-in, so Braylee's existing 4-digit PIN keeps working and upgrades itself the first time she signs in.
 
+**Rehash rule:** the legacy-to-peppered rewrite on sign-in only happens when `VERCEL_ENV=production` (or `PIN_REHASH=1`, for local testing). Preview deployments and laptops only verify, so pointing a non-production process (with a different `NEXTAUTH_SECRET`) at the prod DB can never rewrite Braylee's hash under the wrong key. New saves are peppered in every environment, since each has its own DB. After deploy, Braylee's hash upgrades on her first production sign-in.
+
 **Rotating `NEXTAUTH_SECRET` invalidates every peppered PIN and student ID** (Braylee and all saved cadets) along with all sessions. Braylee's PIN would have to be reset by hand (a plain `bcrypt` hash of the PIN in `User.pin` is accepted and re-peppered on sign-in); saved cadets would have to save again. Do not rotate it casually.
 
 The password-manager opt-out for these fields (text input with a CSS mask, `autocomplete="off"`, `data-1p-ignore` etc.) is deliberate: do not turn them into `type="password"` fields.

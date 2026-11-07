@@ -39,8 +39,9 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] }); // bcryptjs needs the real timers
   vi.setSystemTime(NOW);
   compares = vi.spyOn(bcrypt, 'compare');
+  process.env.VERCEL_ENV = 'production'; // rehash-on-success is production-only (see 'rehash gate' below)
 });
-afterEach(() => { vi.useRealTimers(); compares.mockRestore(); });
+afterEach(() => { vi.useRealTimers(); compares.mockRestore(); delete process.env.VERCEL_ENV; delete process.env.PIN_REHASH; });
 
 describe('verifyPin input validation', () => {
   it.each([[null, '1234'], ['', '1234'], ['   ', '1234'], ['Kid', null], ['Kid', ''], ['Kid', '123'], ['Kid', '123456'], ['Kid', 'abcd']])(
@@ -226,6 +227,40 @@ describe('verifyPin pepper', () => {
   it('refuses to hash without NEXTAUTH_SECRET instead of using a blank pepper', async () => {
     const old = process.env.NEXTAUTH_SECRET; delete process.env.NEXTAUTH_SECRET;
     try { await expect(hashPin('1234')).rejects.toThrow(/NEXTAUTH_SECRET/); } finally { process.env.NEXTAUTH_SECRET = old; }
+  });
+});
+
+describe('verifyPin rehash gate (only production rewrites a stored hash)', () => {
+  const rewritesPin = async (pin) => { prisma.user.update.mockClear(); store(user({ pin })); const r = await verifyPin('Kid', '1234'); return { ok: r.ok, wrote: 'pin' in prisma.user.update.mock.calls[0][0].data }; };
+
+  it('production: legacy bcrypt and plaintext rows are rehashed', async () => {
+    process.env.VERCEL_ENV = 'production';
+    expect(await rewritesPin(HASH)).toEqual({ ok: true, wrote: true });
+    expect(await rewritesPin('1234')).toEqual({ ok: true, wrote: true });
+  });
+
+  it.each([[undefined], ['preview'], ['development'], ['']])('VERCEL_ENV=%j: sign-in still works but nothing is rewritten', async (env) => {
+    if (env === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = env;
+    expect(await rewritesPin(HASH)).toEqual({ ok: true, wrote: false });
+    expect(await rewritesPin('1234')).toEqual({ ok: true, wrote: false });
+    // still resets the counter and lock
+    expect(prisma.user.update.mock.calls[0][0].data).toMatchObject({ failedLoginAttempts: 0, lockedUntil: null });
+  });
+
+  it('PIN_REHASH=1 opts in outside production (local testing); other values do not', async () => {
+    delete process.env.VERCEL_ENV;
+    process.env.PIN_REHASH = '1';
+    expect(await rewritesPin(HASH)).toEqual({ ok: true, wrote: true });
+    process.env.PIN_REHASH = 'true';
+    expect(await rewritesPin(HASH)).toEqual({ ok: true, wrote: false });
+  });
+
+  it('new saves are peppered in every environment', async () => {
+    delete process.env.VERCEL_ENV;
+    const h = await hashPin('24680');
+    expect(await bcrypt.compare('24680', h)).toBe(false);
+    store(user({ pin: h }));
+    expect((await verifyPin('Kid', '24680')).ok).toBe(true);
   });
 });
 
