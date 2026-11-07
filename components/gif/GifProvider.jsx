@@ -77,12 +77,13 @@ function buildFeedbackApi({ show, preload, dismiss, playIntro, lastShownAt, pend
      * Returns which GIF category (if any) was shown.
      */
     correct({ streak = 0, setComplete = false, newBest = false, moment } = {}) {
-      gameFx.correct(moment);
       let cat = null;
       if (setComplete || newBest) cat = 'levelUp';
       else if (isMilestone(streak)) cat = 'streak';
       else if (cooledDown(lastShownAt.current) && Math.random() < GIF_SETTINGS.celebrateChance) cat = 'celebrate';
+      // Card first: it takes the stage, so the astronaut's bubble (and its voice) is denied instead of spoken then cut
       if (cat) show(cat, { n: streak });
+      gameFx.correct(moment);
       if (cat === 'streak') gameFx.emit('streak', { n: streak });
       else if (cat === 'levelUp') gameFx.emit('levelUp');
       // Preload the milestone GIF one step ahead
@@ -156,8 +157,9 @@ export function GifProvider({ children }) {
     if (!gif) return;
     // One big moment at a time: a modal (or a higher-ranked card) holding the stage drops this card, no backlog
     // (a displaced card's release is a no-op, so dismiss doubles as the preempt handler)
-    release.current = director.claim(GIF_KIND[cat], dismiss);
-    if (!release.current) return;
+    const mine = director.claim(GIF_KIND[cat], dismiss);
+    if (!mine) return; // denied: the live card (if any) keeps its own release handle
+    release.current = mine;
     markShown(cat, gif);
     lastShownAt.current = Date.now();
     const message = pick(GIF_MESSAGES[cat]).replace('{n}', String(n ?? ''));
@@ -168,7 +170,7 @@ export function GifProvider({ children }) {
     setTimeout(() => preload(cat), 600);
   }, [next, markShown, preload, dismiss]);
 
-  useEffect(() => () => { clearTimeout(timer.current); clearTimeout(pendingModal.current); }, []);
+  useEffect(() => () => { clearTimeout(timer.current); clearTimeout(pendingModal.current); releaseSlot(release); }, []);
 
   const { introOn, finishIntro, playIntro } = useIntroPlayer();
 

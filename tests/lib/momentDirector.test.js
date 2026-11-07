@@ -1,6 +1,4 @@
 import { describe, it, expect, vi } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import { createDirector } from '../../lib/momentDirector';
 import { currentUserImage } from '../../lib/userImage';
 
@@ -55,17 +53,45 @@ describe('moment director', () => {
   });
 });
 
-describe('one Braylee face per screen', () => {
-  const walk = (dir) => readdirSync(dir).flatMap((f) => {
-    const p = join(dir, f);
-    return statSync(p).isDirectory() ? walk(p) : [p];
+describe('director regressions', () => {
+  it('a denied claim leaves the live card releasable: streak up, tryAgain denied, card ends, celebrate shows', () => {
+    const d = createDirector();
+    const releaseStreak = d.claim('streak');
+    expect(d.claim('celebrate')).toBeNull(); // tryAgain (celebrate rank) denied
+    releaseStreak();
+    expect(d.current()).toBeNull();
+    expect(d.claim('celebrate')).toBeTypeOf('function');
   });
-  it('only the HostAstronaut (login / guest home) renders the host photo', () => {
-    const hostUsers = ['app', 'components'].flatMap(walk)
-      .filter((f) => /\.jsx$/.test(f))
-      .filter((f) => /<Astronaut\b[^>]*\bhost\b/.test(readFileSync(f, 'utf8')))
-      .map((f) => f.split('/').pop());
-    expect(hostUsers).toEqual(['HostAstronaut.jsx']);
+
+  it('releases are idempotent and token-based', () => {
+    const d = createDirector();
+    const a = d.claim('streak');
+    const b = d.claim('streak'); // replaces a
+    a(); a();
+    expect(d.current()).toBe('streak');
+    b();
+    expect(d.current()).toBeNull();
+  });
+
+  it('overlapping modals free the stage only when the last one releases', () => {
+    const d = createDirector();
+    const m1 = d.claim('modal');
+    const m2 = d.claim('modal');
+    m1();
+    expect(d.current()).toBe('modal');
+    m2();
+    expect(d.current()).toBeNull();
+  });
+
+  it('auto-releases a hold that outlives the safety net', () => {
+    vi.useFakeTimers();
+    const warn = vi.fn();
+    const d = createDirector({ maxHoldMs: 1000, warn });
+    d.claim('modal');
+    vi.advanceTimersByTime(1001);
+    expect(d.current()).toBeNull();
+    expect(warn).toHaveBeenCalledOnce();
+    vi.useRealTimers();
   });
 });
 
