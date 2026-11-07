@@ -18,7 +18,7 @@ Gaps found in the code review that are **not fixed**. Each entry says what happe
 
 ## 1. Missions re-lock after a miss on a shared fact
 
-**Status: Resolved by the persisted-unlocks change (decided 2026-11-07).** Unlocks are now stored per player in `SkillUnlock` and never removed, so a later miss cannot lock a mission again. The unlock rule (previous skill mastered) is unchanged and was deliberately not loosened. Existing players are backfilled the first time their map loads after deploy. The text below is kept for history.
+**Status: Resolved by the persisted-unlocks change (decided 2026-11-07).** Unlocks are now stored per player in `SkillUnlock` and never removed (except by a seat wipe or a saved-cadet purge, like all other progress), so a later miss cannot lock a mission again. The unlock rule (previous skill mastered) is unchanged and was deliberately not loosened. Existing players are backfilled the first time their map loads after deploy. The text below is kept for history.
 
 **Where:** `lib/skillState.js` (unlock rule), `app/api/problems/[id]/attempt/route.js` (clears `UserProblem.mastered` on any miss).
 

@@ -55,7 +55,7 @@ The first time a seat (or Braylee) has no grade, the home page asks "What grade 
 
 ### How missions unlock
 
-Within one grade, skills are ordered. A skill is open when it is the first in the grade, or the previous skill is mastered, or it is already mastered or has attempts. The first time a player's map loads with a mission open, it is stored (`SkillUnlock`), and a stored unlock is permanent: a later miss on a fact shared with the previous mission (which clears that fact's mastered flag) never locks the mission again. The unlock rule itself is unchanged. Only a progress wipe (a recycled guest seat) clears unlocks. Grade is a starting point, not a gate: any grade can be picked.
+Within one grade, skills are ordered. A skill is open when it is the first in the grade, or the previous skill is mastered, or it is already mastered or has attempts. The first time a player's map loads with a mission open, it is stored (`SkillUnlock`), and a stored unlock is permanent: a later miss on a fact shared with the previous mission (which clears that fact's mastered flag) never locks the mission again. The unlock rule itself is unchanged. Unlocks follow the player's other progress: they stay when a guest turns the seat into a saved cadet and when that cadet signs back in, and they are cleared only by a progress wipe (a recycled guest seat, or a saved cadet deleted after the retention period). The empty guest seat that replaces a saved one starts with none. Grade is a starting point, not a gate: any grade can be picked.
 
 ## Modes
 
@@ -150,7 +150,7 @@ Before Practice, Testing, a Skill mission and a Spelling round, a full-screen "G
 | Guest seat | Server database + httpOnly `guest_seat` cookie | Only a hash of the cookie secret is stored. Wiped after 7 idle days. |
 | Session | NextAuth JWT cookie | Carries the user id (a hashed seat key for guests, a saved-cadet flag for saved cadets). |
 | Times-table attempts and mastery | Server (`Attempt`, `UserProblem`, `Problem`) | Last 5 attempts per fact per player. |
-| Mission unlocks | Server (`SkillUnlock`) | Which missions are open; permanent once earned. |
+| Mission unlocks | Server (`SkillUnlock`) | Which missions are open; permanent once earned; kept with a saved cadet, wiped with a guest seat or purged cadet. |
 | Math mission progress | Server (`MathSkillProgress`, `MathAttempt`) | Current level, rolling window, mastered flag. |
 | Test score | Nowhere | Shown on screen only. |
 | Spelling progress | Nowhere | Streaks and stars live only on screen. |

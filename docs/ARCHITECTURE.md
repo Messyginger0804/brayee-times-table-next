@@ -110,6 +110,7 @@ Implemented in `lib/savedCadets.js` (save), `lib/savedCadetPurge.js` (retention,
 | Cap | `SAVED_CADETS_MAX` (default 10, clamped 0-500); Braylee is not counted. Beyond it: 409 `full`, the kid keeps playing as a guest |
 | Nickname | 2-16 characters (letters, numbers, space, `'`, `-`), unique case-insensitively, reserved names (Braylee, Bray, Guest, Cadet) and profanity refused |
 | Retention | Deleted with all their data after `SAVED_CADET_RETENTION_DAYS` (default 30, clamped 1-3650) without activity (`lastActiveAt`). Runs lazily (sign-in, saves, every few minutes on saved-cadet requests) and in the daily cron. Braylee is never purged |
+| Progress rows | Conversion is in place, so every progress row (including `SkillUnlock`) keeps its `userId` and follows the cadet. The purge deletes `SEAT_TABLES` (which includes `skillUnlock`) plus `account` and `session`; the refilled guest seat is a new row with no unlocks |
 | Session | The JWT carries `sc`. `getActor()` re-checks the row is still a saved cadet and refreshes `lastActiveAt` (throttled), so a purged cadet is signed out |
 | Isolation | Every API route is scoped to the caller's own id; a saved cadet reads and writes only their own data |
 

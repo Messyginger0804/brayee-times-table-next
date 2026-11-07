@@ -115,7 +115,7 @@ Note for the persisted-unlocks release (`20260801000000_add_skill_unlock`): it o
 | Path | `GET /api/cron/purge-guests` |
 | Schedule | `0 4 * * *` (daily at 04:00 UTC, set in `vercel.json`) |
 | Auth | `Authorization: Bearer <CRON_SECRET>`, compared in constant time. Missing secret or wrong header gives 401. |
-| Effect | Wipes guest seats idle for more than 7 days (progress rows deleted, token cleared) and deletes saved cadets idle for more than `SAVED_CADET_RETENTION_DAYS`, with all their data (never Braylee). Returns `{"purged": <count>, "purgedSaved": <count>}`. |
+| Effect | Wipes guest seats idle for more than 7 days (progress rows deleted, token cleared) and deletes saved cadets idle for more than `SAVED_CADET_RETENTION_DAYS`, with all their data, `SkillUnlock` rows included (never Braylee). Returns `{"purged": <count>, "purgedSaved": <count>}`. |
 | Schema missing | 503 maintenance response. |
 
 Guest seats and saved cadets are also purged lazily on requests (a failing lazy purge is logged and never breaks the request), so the cron is a backstop.

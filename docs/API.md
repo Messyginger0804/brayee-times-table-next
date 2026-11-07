@@ -44,6 +44,8 @@ After a successful claim the client calls next-auth `signIn('guest')` to start t
 
 ## Saved cadets
 
+Mission unlocks (`SkillUnlock`) stay with the account when a seat is saved, and are deleted with it when a saved cadet is purged.
+
 | Method and path | Caller | Request | Response | Side effects |
 |---|---|---|---|---|
 | `POST /api/cadets/save` | Guest only (a saved cadet or Braylee gets 403 `Only guest cadets can be saved.`) | JSON `{ name, secret, confirm }`: `name` is the nickname (2-16 characters of letters, numbers, space, `'`, `-`; reserved names such as Braylee, Guest and Cadet and profanity refused), `secret` the student ID (5-8 digits), `confirm` the same ID again | `{ ok: true, name }` (the ID is never echoed) | Turns the caller's guest seat into a saved cadet in one transaction (advisory lock, compare-and-set on the seat token): sets the nickname, stores the hashed student ID in `User.pin`, `savedCadet = true`, `savedAt`, clears the seat fields; progress stays on the same row; a fresh empty guest seat is created. Expires the `guest_seat` cookie. The client then signs in with the new name and ID. Errors: 400 `{ error, code: "name" \| "secret" }`; 401 not logged in, or `code: "seat"` when the seat was lost meanwhile; 403 not a guest; 409 `code: "full"` (all `SAVED_CADETS_MAX` spots taken) or `code: "taken"` (name already used, case-insensitive); 429 slow down (`Retry-After`); 503 maintenance |
