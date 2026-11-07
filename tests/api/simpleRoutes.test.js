@@ -112,7 +112,7 @@ describe('GET /api/curriculum/me', () => {
     buildSkillStates.mockResolvedValue([{ id: 's' }]);
     const res = await curriculumGET(url());
     expect(await res.json()).toEqual({ grade: 3, shownGrade: 3, skills: [{ id: 's' }] });
-    expect(buildSkillStates).toHaveBeenCalledWith(7, 3);
+    expect(buildSkillStates).toHaveBeenCalledWith(7, 3, { id: 7, gk: null });
   });
   it('?grade=all shows every grade; ?grade= (empty) keeps the default', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 7, grade: 3 });

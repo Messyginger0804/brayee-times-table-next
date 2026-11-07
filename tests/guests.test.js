@@ -11,7 +11,7 @@ const at = (ms) => new Date(T0.getTime() + ms);
 /** Minimal in-memory stand-in for the bits of prisma that lib/guests.js uses. */
 function fakeDb() {
   const users = [];
-  const data = { attempt: [], test: [], spellingAttempt: [], mathAttempt: [], mathSkillProgress: [], userProblem: [] };
+  const data = { attempt: [], test: [], spellingAttempt: [], mathAttempt: [], mathSkillProgress: [], userProblem: [], skillUnlock: [] };
   let nextId = 1;
   const matchWhere = (u, w = {}) => Object.entries(w).every(([k, v]) => {
     if (k === 'OR') return v.some((c) => matchWhere(u, c));
@@ -313,11 +313,13 @@ describe('7-day purge', () => {
     seatOf(db, 1).grade = 3;
     db.data.attempt.push({ userId: seatOf(db, 1).id }, { userId: seatOf(db, 2).id });
     db.data.mathSkillProgress.push({ userId: seatOf(db, 1).id });
+    db.data.skillUnlock.push({ userId: seatOf(db, 1).id, skillId: 'x' }, { userId: seatOf(db, 2).id, skillId: 'x' });
 
     expect(await purgeExpired(db, T0)).toBe(1);
     expect(seatOf(db, 1)).toMatchObject({ grade: null, guestTokenHash: null, lastActiveAt: null });
     expect(db.data.attempt).toEqual([{ userId: seatOf(db, 2).id }]);
     expect(db.data.mathSkillProgress).toEqual([]);
+    expect(db.data.skillUnlock).toEqual([{ userId: seatOf(db, 2).id, skillId: 'x' }]);
     expect(await findSeatByToken(old.token, db, T0)).toBeNull();
     expect((await findSeatByToken(fresh.token, db, T0)).guestSeat).toBe(2);
     expect(await purgeExpired(db, T0)).toBe(0); // idempotent

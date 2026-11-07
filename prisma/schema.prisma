@@ -77,6 +77,7 @@ model User {
   tests               Test[]
   attempts            Attempt[]
   userProblems        UserProblem[]
+  skillUnlocks        SkillUnlock[]
   // NextAuth optional fields
   email               String?             @unique
   emailVerified       DateTime?
@@ -208,4 +209,17 @@ model MathAttempt {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, skillId, createdAt])
+}
+
+// Missions (skills) a kid has unlocked. Permanent: an unlock is never removed (only a progress wipe clears it), so a later miss on a
+// fact shared with the previous skill cannot lock the mission again. Written idempotently by lib/skillState.js.
+model SkillUnlock {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  skillId    String
+  unlockedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
 }

@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../lib/prisma', () => ({
-  prisma: { mathSkillProgress: { findMany: vi.fn() }, userProblem: { findMany: vi.fn() }, problem: { findMany: vi.fn() } },
+  prisma: {
+    mathSkillProgress: { findMany: vi.fn() }, userProblem: { findMany: vi.fn() }, problem: { findMany: vi.fn() },
+    skillUnlock: { findMany: vi.fn(), createMany: vi.fn() }, $transaction: vi.fn(),
+  },
 }));
 import { prisma } from '../../lib/prisma';
 import { SKILLS, PROBLEM_SKILLS, isProblemSkill, LEVEL_ADVANCE_WINDOW } from '../../lib/mathSkills';
-import { buildSkillStates } from '../../lib/skillState';
+import { buildSkillStates, isUnlocked } from '../../lib/skillState';
 
 const generated = SKILLS.filter((s) => !isProblemSkill(s.id));
 const g = (s) => generated.find(s);
@@ -15,6 +18,9 @@ beforeEach(() => {
   prisma.mathSkillProgress.findMany.mockResolvedValue([]);
   prisma.userProblem.findMany.mockResolvedValue([]);
   prisma.problem.findMany.mockResolvedValue([]);
+  prisma.skillUnlock.findMany.mockResolvedValue([]);
+  prisma.skillUnlock.createMany.mockResolvedValue({ count: 0 });
+  prisma.$transaction.mockImplementation((fn) => fn(prisma));
 });
 
 const find = (out, id) => out.find((s) => s.id === id);
@@ -24,6 +30,8 @@ describe('buildSkillStates', () => {
     await buildSkillStates(7, null);
     expect(prisma.mathSkillProgress.findMany).toHaveBeenCalledWith({ where: { userId: 7 } });
     expect(prisma.userProblem.findMany.mock.calls[0][0].where).toEqual({ userId: 7 });
+    expect(prisma.skillUnlock.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.skillUnlock.findMany.mock.calls[0][0].where).toEqual({ userId: 7 });
   });
 
   it('returns every skill for null, only that grade otherwise, sorted by grade then order', async () => {
@@ -136,5 +144,114 @@ describe('buildSkillStates', () => {
       expect(s.problems).toEqual({ total: 0, mastered: 0 });
       expect(s.mastered).toBe(false);
     });
+  });
+});
+
+describe('isUnlocked with persisted unlocks', () => {
+  const sk = (id, order, extra = {}) => ({ id, grade: 3, order, mastered: false, progress: null, ...extra });
+  const a = sk('a', 1, { mastered: true });
+  const b = sk('b', 2);
+
+  it('uses the previous-skill-mastered rule when nothing is persisted', () => {
+    expect(isUnlocked(b, [a, b])).toBe(true);
+    expect(isUnlocked(b, [{ ...a, mastered: false }, b])).toBe(false);
+  });
+  it('a persisted unlock keeps the skill open after the previous skill stops being mastered', () => {
+    const lapsed = { ...a, mastered: false };
+    expect(isUnlocked(b, [lapsed, b], new Set())).toBe(false);
+    expect(isUnlocked(b, [lapsed, b], new Set(['b']))).toBe(true);
+  });
+  it('a persisted unlock does not open any other skill', () => {
+    const c = sk('c', 3);
+    expect(isUnlocked(c, [{ ...a, mastered: false }, b, c], new Set(['b']))).toBe(false);
+  });
+});
+
+describe('buildSkillStates persists unlocks', () => {
+  const pids = Object.keys(PROBLEM_SKILLS);
+  const prevOf = (id) => { const s = SKILLS.find((x) => x.id === id); return SKILLS.find((p) => p.grade === s.grade && p.order === s.order - 1); };
+  const next = SKILLS.find((s) => isProblemSkill(s.id) && prevOf(s.id) && isProblemSkill(prevOf(s.id).id));
+  const prev = prevOf(next.id);
+  const facts = [];
+  for (let a = 1; a <= 12; a++) for (let b = 1; b <= 12; b++) facts.push({ id: a * 100 + b, problem: `${a} x ${b}` });
+  const factsOf = (id) => facts.filter((f) => { const [x, y] = f.problem.split(' x ').map(Number); return PROBLEM_SKILLS[id](x, y); });
+  const mastered = (fs) => fs.map((f) => ({ mastered: true, problem: { problem: f.problem } }));
+
+  it('writes every open skill once (backfill), idempotently and scoped to the user', async () => {
+    const out = await buildSkillStates(7, 3);
+    expect(prisma.skillUnlock.createMany).toHaveBeenCalledTimes(1);
+    const arg = prisma.skillUnlock.createMany.mock.calls[0][0];
+    expect(arg.skipDuplicates).toBe(true);
+    expect(arg.data.every((d) => d.userId === 7)).toBe(true);
+    // all grades are persisted, not just the shown one
+    expect(new Set(arg.data.map((d) => d.skillId))).toEqual(new Set(SKILLS.filter((s) => s.order === 1).map((s) => s.id)));
+    expect(out.filter((s) => s.unlocked).length).toBeGreaterThan(0);
+  });
+
+  it('does not write when everything open is already stored', async () => {
+    prisma.skillUnlock.findMany.mockResolvedValue(SKILLS.filter((s) => s.order === 1).map((s) => ({ skillId: s.id })));
+    await buildSkillStates(7, null);
+    expect(prisma.skillUnlock.createMany).not.toHaveBeenCalled();
+  });
+
+  it('shared-fact miss: a mission stays unlocked after the previous skill stops being mastered', async () => {
+    prisma.problem.findMany.mockResolvedValue(facts);
+    // 1. the previous skill is fully mastered -> next unlocks and is persisted
+    prisma.userProblem.findMany.mockResolvedValue(mastered(factsOf(prev.id)));
+    let out = await buildSkillStates(7, null);
+    expect(find(out, prev.id).mastered).toBe(true);
+    expect(find(out, next.id).unlocked).toBe(true);
+    const stored = prisma.skillUnlock.createMany.mock.calls[0][0].data.map((d) => d.skillId);
+    expect(stored).toContain(next.id);
+    // 2. one miss on a fact clears its mastered flag -> previous skill no longer mastered, but next stays unlocked
+    prisma.skillUnlock.findMany.mockResolvedValue(stored.map((skillId) => ({ skillId })));
+    const inNext = new Set(factsOf(next.id).map((f) => f.id));
+    const dropped = factsOf(prev.id).find((f) => inNext.has(f.id));
+    expect(dropped).toBeDefined(); // the missed fact really is in both skills
+    expect(factsOf(prev.id).map((f) => f.id)).toContain(dropped.id);
+    prisma.userProblem.findMany.mockResolvedValue(mastered(factsOf(prev.id).filter((f) => f.id !== dropped.id)));
+    out = await buildSkillStates(7, null);
+    expect(find(out, prev.id).mastered).toBe(false);
+    expect(find(out, next.id).unlocked).toBe(true);
+    // 3. without the persisted row it would have re-locked (the old bug)
+    prisma.skillUnlock.findMany.mockResolvedValue([]);
+    expect(find(await buildSkillStates(7, null), next.id).unlocked).toBe(false);
+  });
+
+  it('before the migration (table missing) it falls back to the old rule and does not write', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    prisma.skillUnlock.findMany.mockRejectedValue(Object.assign(new Error('missing'), { code: 'P2021', meta: { table: 'public.SkillUnlock' } }));
+    const out = await buildSkillStates(7, null);
+    expect(out).toHaveLength(SKILLS.length);
+    expect(out.filter((s) => s.order === 1).every((s) => s.unlocked)).toBe(true);
+    expect(out.find((s) => s.order === 2).unlocked).toBe(false);
+    expect(prisma.skillUnlock.createMany).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it('any other read error is rethrown', async () => {
+    prisma.skillUnlock.findMany.mockRejectedValue(new Error('db down'));
+    await expect(buildSkillStates(7, null)).rejects.toThrow('db down');
+  });
+
+  it('a failing persist write is logged and the state is still returned', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    prisma.skillUnlock.createMany.mockRejectedValue(new Error('db down'));
+    const out = await buildSkillStates(7, null);
+    expect(out).toHaveLength(SKILLS.length);
+    expect(out.filter((s) => s.order === 1).every((s) => s.unlocked)).toBe(true);
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it('a guest whose seat was lost writes nothing (writeAs rejects) and the request still succeeds', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    prisma.$queryRaw = vi.fn().mockResolvedValue([]);
+    prisma.$transaction.mockImplementation((fn) => fn(prisma));
+    const out = await buildSkillStates(7, null, { id: 7, gk: 'old-hash' });
+    expect(prisma.skillUnlock.createMany).not.toHaveBeenCalled();
+    expect(out).toHaveLength(SKILLS.length);
+    err.mockRestore();
+    delete prisma.$queryRaw;
   });
 });

@@ -14,6 +14,7 @@
  * MathSkillProgress   : attempts/correct summed, levelIndex = highest, `recent` window = the highest level's window
  *                       (both accounts at the same level: oldest-first by updatedAt, last 20), mastered = OR,
  *                       masteredAt/updatedAt = latest, createdAt = earliest, unlockedByParent = OR.
+ * SkillUnlock        : the dupes' unlocks are added to KEEP's (union, never lost); other users' rows are deleted.
  *
  * Usage:  node scripts/cleanup-accounts.js                # dry run (default): does everything, then rolls back
  *         node scripts/cleanup-accounts.js --confirm      # writes (ONE transaction)
@@ -119,12 +120,19 @@ async function mergeSkillProgress(tx, plan, ids, stats) {
   stats.moved.MathSkillProgress = movedMsp;
 }
 
+async function mergeUnlocks(tx, plan, stats) {
+  const rows = await tx.skillUnlock.findMany({ where: { userId: { in: plan.dupeIds } } });
+  const data = [...new Map(rows.map((r) => [r.skillId, { userId: plan.keep.id, skillId: r.skillId, unlockedAt: r.unlockedAt }])).values()];
+  stats.moved.SkillUnlock = data.length ? (await tx.skillUnlock.createMany({ data, skipDuplicates: true })).count : 0;
+}
+
 async function mergeDupes(tx, plan, isMastered, stats) {
   const { keep, dupes, dupeIds } = plan;
   const ids = [keep.id, ...dupeIds];
   await moveAttemptRows(tx, plan, stats);
   await mergeUserProblems(tx, plan, ids, isMastered, stats);
   await mergeSkillProgress(tx, plan, ids, stats);
+  await mergeUnlocks(tx, plan, stats);
   const level = Math.max(keep.level, ...dupes.map((u) => u.level));
   if (level !== keep.level) await tx.user.update({ where: { id: keep.id }, data: { level } });
   stats.deleted.mergedUsers = (await tx.user.deleteMany({ where: { id: { in: dupeIds } } })).count;
@@ -138,6 +146,7 @@ async function deleteOthers(tx, otherIds, stats) {
   stats.deleted.MathAttempt = (await tx.mathAttempt.deleteMany(w)).count;
   stats.deleted.MathSkillProgress = (await tx.mathSkillProgress.deleteMany(w)).count;
   stats.deleted.UserProblem = (await tx.userProblem.deleteMany(w)).count;
+  stats.deleted.SkillUnlock = (await tx.skillUnlock.deleteMany(w)).count;
   stats.deleted.Account = (await tx.account.deleteMany(w)).count;
   stats.deleted.Session = (await tx.session.deleteMany(w)).count;
   stats.deleted.Users = (await tx.user.deleteMany({ where: { id: { in: otherIds } } })).count;
