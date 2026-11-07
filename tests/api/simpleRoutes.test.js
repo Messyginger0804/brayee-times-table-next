@@ -164,7 +164,7 @@ describe('POST /api/auth/login', () => {
     expect(await res.json()).toEqual({ id: 1, name: 'K', level: 2, image: 'i' });
   });
   it('bad credentials -> 401', async () => {
-    verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'Invalid name or student ID' });
+    verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'bad credentials' });
     const res = await loginPOST(jsonReq({ name: 'K', pin: '99999' }));
     expect(res.status).toBe(401);
     expect(res.headers.get('Retry-After')).toBeNull();

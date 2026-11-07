@@ -21,7 +21,7 @@ function Field({ id, label, help, children }) {
 }
 
 /** Nickname + student ID (twice). The ID only lives in this component's state and the request body; it is cleared as soon as we are done. */
-function SaveForm({ form, setForm, error, onSubmit }) {
+export function SaveForm({ form, setForm, error, onSubmit }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const idProps = { maxLength: STUDENT_ID_MAX, pattern: STUDENT_ID_PATTERN, placeholder: '•••••', className: `${FIELD} tracking-[0.5em]` };
   return (
@@ -36,7 +36,7 @@ function SaveForm({ form, setForm, error, onSubmit }) {
       <Field id="cadet-confirm" label="Type your student ID again">
         <SecretInput id="cadet-confirm" name="student_number_again" {...idProps} value={form.confirm} onChange={(v) => set('confirm', v)} />
       </Field>
-      <p className="text-left text-body">Use your student ID (the number you use for lunch at school). We keep it secret and never show it to anyone. Don&apos;t share it with friends!</p>
+      <p className="text-left text-body">Use your student ID (the 5–8 digit number you use for lunch at school). We keep it secret and never show it to anyone. Don&apos;t share it with friends!</p>
       <div aria-live="polite" className="min-h-[1.5rem]">
         {error ? <p role="alert" className="text-body font-bold text-neon-coral">{error}</p> : null}
       </div>

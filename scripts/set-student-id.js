@@ -12,15 +12,12 @@
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 
-const STUDENT_ID_RE = /^\d{5,8}$/; // same rule as lib/cadetNames.js
+const { isLocalDbUrl, hostOf, isValidStudentId } = require('./lib/studentIdGuards');
+
 const args = process.argv.slice(2);
 const HAS_BACKUP = args.includes('--i-have-a-backup');
 const nameIdx = args.indexOf('--name');
 const NAME = nameIdx >= 0 ? args[nameIdx + 1] : null;
-
-function hostOf(url) {
-  try { return new URL(url).hostname.replace(/^\[|\]$/g, ''); } catch (_) { return null; }
-}
 
 function readFromStdin() {
   return new Promise((resolve, reject) => {
@@ -59,13 +56,12 @@ function readHidden(prompt) {
 async function main() {
   if (!NAME) { console.error('Usage: node scripts/set-student-id.js --name <account name> [--i-have-a-backup]'); process.exit(2); }
   const url = process.env.DATABASE_URL || '';
-  const host = hostOf(url);
-  if (!['localhost', '127.0.0.1', '::1'].includes(host) && !HAS_BACKUP) {
-    console.error(`Refusing to run against non-localhost database "${host}" without --i-have-a-backup.`);
+  if (!isLocalDbUrl(url) && !HAS_BACKUP) {
+    console.error(`Refusing to run against non-localhost database "${hostOf(url)}" without --i-have-a-backup.`);
     process.exit(2);
   }
   const id = process.stdin.isTTY ? await readHidden('Student ID (hidden): ') : await readFromStdin();
-  if (!STUDENT_ID_RE.test(id)) { console.error('The student ID must be 5 to 8 digits.'); process.exit(2); }
+  if (!isValidStudentId(id)) { console.error('The student ID must be 5 to 8 digits.'); process.exit(2); }
 
   const prisma = new PrismaClient();
   try {

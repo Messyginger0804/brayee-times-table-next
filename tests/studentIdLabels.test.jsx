@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CredentialsForm from '../app/login/_components/CredentialsForm';
+import { SaveForm } from '../components/SaveCadet';
 
 describe('sign-in form wording', () => {
   const html = renderToStaticMarkup(<CredentialsForm name="" setName={() => {}} pin="" setPin={() => {}} error="" loading={false} onSubmit={() => {}} onBack={() => {}} />);
@@ -13,5 +14,17 @@ describe('sign-in form wording', () => {
   });
   it('never says secret number', () => {
     expect(html.toLowerCase()).not.toContain('secret number');
+  });
+});
+
+describe('save form wording', () => {
+  const html = renderToStaticMarkup(<SaveForm form={{ name: '', secret: '', confirm: '' }} setForm={() => {}} error="" onSubmit={() => {}} />);
+  it('uses the shared name label, short ID label, helper and 5-8 digit hint', () => {
+    expect(html).toContain('>Your cadet name<');
+    expect(html).toContain('>Student ID<');
+    expect(html).toContain('We scramble it so nobody can read it');
+    expect(html).toContain('id="cadet-secret-help"');
+    expect(html).toContain('aria-describedby="cadet-secret-help');
+    expect(html).toContain('5–8 digit');
   });
 });
