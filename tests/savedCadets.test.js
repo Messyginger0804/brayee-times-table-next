@@ -31,6 +31,12 @@ function fakeDb() {
     users, rows,
     add: (u) => { const r = { ...blank, id: nextId++, ...u }; users.push(r); return r; },
     $executeRaw: async () => 1,
+    // the purge's row lock: SELECT ... WHERE id AND savedCadet AND name <> 'Braylee' AND lastActiveAt IS NOT DISTINCT FROM $ FOR UPDATE
+    $queryRaw: async (_s, id, braylee, last) => {
+      const u = users.find((x) => x.id === id);
+      const same = (u?.lastActiveAt ?? null) === null ? last == null : last != null && u.lastActiveAt.getTime() === new Date(last).getTime();
+      return u && u.savedCadet && u.name !== braylee && same ? [{ ok: 1 }] : [];
+    },
     user: {
       count: async ({ where }) => users.filter((u) => match(u, where)).length,
       findMany: async ({ where }) => users.filter((u) => match(u, where)).map((u) => ({ ...u })),
@@ -88,7 +94,8 @@ describe('saveCadet', () => {
     expect(u).toMatchObject({ name: 'Luna', isGuest: false, guestSeat: null, guestTokenHash: null, savedCadet: true, level: 3, grade: 4, failedLoginAttempts: 0 });
     expect(u.savedAt).toEqual(NOW); expect(u.lastActiveAt).toEqual(NOW);
     expect(u.pin).not.toContain('24680');
-    expect(await bcrypt.compare('24680', u.pin)).toBe(true);
+    expect(u.pin).toMatch(/^\$2[aby]\$/);
+    expect(await bcrypt.compare('24680', u.pin)).toBe(false); // peppered: a plain bcrypt of the ID does not match
     expect(db.rows.mathSkillProgress).toHaveLength(1); expect(db.rows.attempt).toHaveLength(1); // progress kept
   });
 

@@ -33,7 +33,7 @@ vi.mock('../lib/prisma', () => ({
   },
 }));
 
-const { verifyPin, cooldownFor, lockMessage, MAX_FAILS, hashPin, isHashed } = await import('../lib/pinAuth');
+const { verifyPin, cooldownFor, lockMessage, MAX_FAILS, hashPin, isHashed, FAIL_MESSAGE } = await import('../lib/pinAuth');
 const { _resetRateLimits } = await import('../lib/rateLimit');
 
 const mk = async (extra = {}) => ({
@@ -50,8 +50,8 @@ beforeEach(async () => {
 });
 
 describe('cooldownFor', () => {
-  it('escalates 1 min / 5 min / 30 min', () => {
-    expect([0, 4, 5, 9, 10, 14, 15, 40].map(cooldownFor)).toEqual([0, 0, 60, 60, 300, 300, 1800, 1800]);
+  it('escalates 1 min / 5 min / 30 min / 2 h / 24 h', () => {
+    expect([0, 4, 5, 9, 10, 14, 15, 19, 20, 24, 25, 40].map(cooldownFor)).toEqual([0, 0, 60, 60, 300, 300, 1800, 1800, 7200, 7200, 86400, 86400]);
   });
   it('speaks kid', () => {
     expect(lockMessage(1)).toBe("Let's take a short break! Try again in 1 second.");
@@ -68,25 +68,26 @@ describe('verifyPin', () => {
     expect((await verifyPin('Guest 001', '1234')).status).toBe(401);
   });
 
-  it('locks on the 5th wrong PIN and refuses even the right PIN while resting', async () => {
+  it('locks on the 5th wrong PIN and refuses even the right PIN while resting, with one generic answer', async () => {
     for (let i = 1; i < MAX_FAILS; i++) expect((await verifyPin('Tester', '0000')).status).toBe(401);
-    const fifth = await verifyPin('Tester', '0000');
-    expect(fifth).toMatchObject({ status: 429, retryAfter: 60 });
-    const during = await verifyPin('Tester', '1234');
-    expect(during.status).toBe(429);
-    expect(during.error).toMatch(/short break/);
+    expect(await verifyPin('Tester', '0000')).toEqual({ ok: false, status: 401, error: FAIL_MESSAGE });
+    expect(state.users[0].lockedUntil).toBeInstanceOf(Date);
+    expect(await verifyPin('Tester', '1234')).toEqual({ ok: false, status: 401, error: FAIL_MESSAGE });
   });
 
-  it('escalates the cooldown and resets on success', async () => {
+  it('escalates the rest and resets on success', async () => {
     let t = 1_000_000;
     state.now = () => t;
     const realNow = Date.now;
     Date.now = () => t;
+    const rest = () => (state.users[0].lockedUntil.getTime() - t) / 1000;
     try {
       for (let i = 0; i < 5; i++) await verifyPin('Tester', '0000');
+      expect(rest()).toBe(60);
       t += 61_000;
-      for (let i = 0; i < 4; i++) { expect((await verifyPin('Tester', '0000')).retryAfter).toBe(60); t += 61_000; }
-      expect((await verifyPin('Tester', '0000')).retryAfter).toBe(300); // 10th wrong
+      for (let i = 0; i < 4; i++) { await verifyPin('Tester', '0000'); expect(rest()).toBe(60); t += 61_000; }
+      await verifyPin('Tester', '0000'); // 10th wrong
+      expect(rest()).toBe(300);
       t += 301_000;
       expect((await verifyPin('Tester', '1234')).ok).toBe(true);
       expect(state.users[0]).toMatchObject({ failedLoginAttempts: 0, lockedUntil: null });
@@ -96,11 +97,8 @@ describe('verifyPin', () => {
 
   it('a parallel burst of wrong PINs cannot test more than MAX_FAILS PINs', async () => {
     const results = await Promise.all(Array.from({ length: 40 }, () => verifyPin('Tester', '0000')));
-    expect(compares.mock.calls.length).toBe(MAX_FAILS);
-    expect(state.users[0].failedLoginAttempts).toBe(MAX_FAILS);
-    expect(results.filter((r) => r.status === 401)).toHaveLength(MAX_FAILS - 1);
-    expect(results.filter((r) => r.status === 429)).toHaveLength(40 - (MAX_FAILS - 1));
-    expect(results.every((r) => !r.ok)).toBe(true);
+    expect(state.users[0].failedLoginAttempts).toBe(MAX_FAILS); // only MAX_FAILS attempts were ever claimed (and so compared)
+    expect(results.every((r) => !r.ok && r.status === 401 && r.error === FAIL_MESSAGE)).toBe(true);
   });
 
   it('upgrades a legacy plaintext PIN to a bcrypt hash on success', async () => {

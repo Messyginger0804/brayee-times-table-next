@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   esbuild: { jsx: "automatic" }, // components use the automatic JSX runtime (as Next does)
   test: {
+    env: { NEXTAUTH_SECRET: 'test-secret' }, // lib/pinAuth.js derives its PIN pepper from it
     coverage: {
       provider: "v8",
       reporter: ["json", "text-summary"], // json => coverage/coverage-final.json (Istanbul format, read by fallow)

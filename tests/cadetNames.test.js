@@ -17,17 +17,21 @@ describe('validateNickname', () => {
     expect(validateNickname(n).ok).toBe(false);
   });
 
-  it.each(['Braylee', 'braylee', 'BRAYLEE', 'Braylee 2', 'B r a y l e e', 'Guest', 'guest 007', 'Guest42', 'Cadet', 'cadet 003', 'CadetKim'])('rejects reserved name %j', (n) => {
+  it.each(['Braylee', 'braylee', 'BRAYLEE', 'Braylee 2', 'B r a y l e e', 'Guest', 'guest 007', 'Guest42', 'Cadet', 'cadet 003', 'CadetKim', 'Bray', 'bray', 'BRAY', 'B-r-a-y'])('rejects reserved name %j', (n) => {
     const r = validateNickname(n);
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/saved for the game/);
   });
 
-  it.each(['fuck', 'Shithead', 'b1tch', 'Big Ass', 'sh1t', 'D4MN', 'Pussycat', 'f u c k'])('rejects rude name %j', (n) => {
+  it.each([
+    'fuck', 'Shithead', 'b1tch', 'Big Ass', 'sh1t', 'D4MN', 'Pussycat', 'f u c k',
+    // compounds, stretched letters, spacing and leetspeak bypasses
+    'Dumbass', 'Asshat', 'Dickhead', 'Butthead', 'Poophead', 'Sexyboy', 'Fuuck', 'Fuuuuck', 'Phuck', 'Fuk', 'fck', 'Shiiit', 'B1tchy', 'a55', 'D1ckhead', 'p00phead', 'S h i t', 'F-u-c-k', "F'u'c'k",
+  ])('rejects rude name %j', (n) => {
     expect(validateNickname(n).ok).toBe(false);
   });
 
-  it.each(['Cassie', 'Dickson', 'Peacock', 'Class Act', 'Hello', 'Grape', 'Assa', 'Hellen', 'Titan', 'Skylar'])('does not trip on harmless %j', (n) => {
+  it.each(['Cassie', 'Dickson', 'Peacock', 'Class Act', 'Hello', 'Grape', 'Hellen', 'Titan', 'Skylar', 'Brayden', 'Glass', 'Grass', 'Bass', 'Assemble', 'Classy', 'Buttercup', 'Essex', 'Dickens', 'Sexton', 'Passion', 'Mass', 'Lassie'])('does not trip on harmless %j', (n) => {
     expect(validateNickname(n).ok).toBe(true);
   });
 

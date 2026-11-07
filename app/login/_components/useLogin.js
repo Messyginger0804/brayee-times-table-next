@@ -16,7 +16,7 @@ function validateLogin(name, pin) {
 }
 
 function loginFailMessage(res) {
-  return res?.error && res.error !== 'CredentialsSignin' ? res.error : 'Hmm, that name or secret number did not work. Try again!';
+  return res?.error && res.error !== 'CredentialsSignin' ? res.error : "That didn't work. Check your name and number, or try again in a little while.";
 }
 
 export default function useLogin() {

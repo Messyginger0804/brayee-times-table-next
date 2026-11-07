@@ -92,7 +92,7 @@ The runtime fails safe instead of crash-looping. A Prisma "column/table does not
 
 ## Login lockout and guest seats (runtime behaviour)
 
-- Login lockout (`lib/pinAuth.js`): each attempt first claims a slot with ONE conditional `UPDATE` (counter + 1, lock applied, lock checked, all in the same statement), so a parallel burst cannot test more than 5 PINs. 5-9 wrong in a row = 1 minute rest, 10-14 = 5 minutes, 15+ = 30 minutes (applied again on every further wrong PIN); a correct PIN resets it. Uses the existing `failedLoginAttempts` / `lockedUntil` columns only, no migration.
+- Login lockout (`lib/pinAuth.js`): each attempt first claims a slot with ONE conditional `UPDATE` (counter + 1, lock applied, lock checked, all in the same statement), so a parallel burst cannot test more than 5 PINs. 5-9 wrong in a row = 1 minute rest, 10-14 = 5 minutes, 15-19 = 30 minutes, 20-24 = 2 hours, 25+ = 24 hours (applied again on every further wrong try); a correct PIN resets it. Unknown name, wrong secret and a resting account all get the same 401 and message ("That didn't work. Check your name and number, or try again in a little while.") and the same bcrypt work, so a nickname cannot be probed through the login form. Uses the existing `failedLoginAttempts` / `lockedUntil` columns only, no migration.
 - Per-IP limits are in-memory (bounded to 5000 keys, oldest evicted) and PER SERVER INSTANCE (serverless instances do not share them), so they are best effort: login 30 attempts / 10 min / IP, new guest seat 10 / 10 min / IP. For a hard limit add a Vercel Firewall rule.
 - Guest seats (`lib/guests.js`): free seats first. A taken seat is reused only if idle for at least `GUEST_MIN_IDLE_MINUTES` (default 15); otherwise `/api/guest/claim` answers 503 "All seats are busy, try again in a few minutes" and the login screen shows it. Reuse and purge are compare-and-set on the seat's token hash and `lastActiveAt`, so two claims cannot take one seat.
 
@@ -157,3 +157,11 @@ Rollback is app-only: the old build ignores both columns. To undo the schema (on
 Cleanup rule: `npm run db:cleanup-accounts` refuses to run (even as a dry run) while any `savedCadet` exists unless `--include-saved-cadets` is passed; with it, saved cadets are deleted like every other non-Braylee user. Do not pass it in production unless that is the intent.
 
 Behaviour: a saved cadet's progress stays on the seat's own row (`id` unchanged); the student ID is bcrypt-hashed into `User.pin` (the same atomic lockout as Braylee: 5 wrong = 1 min, 10 = 5 min, 15+ = 30 min). A saved cadet idle for more than `SAVED_CADET_RETENTION_DAYS` is deleted with all their data (attempts, tests, progress, row), lazily and by the daily cron; Braylee is never purged. Only a guest session can save; every API route is scoped to the signed-in caller's own id, so a saved cadet can read and write only their own data.
+
+### PIN pepper (no new env var)
+
+New hashes are `bcrypt(HMAC-SHA256(pepper, secret))`. The pepper is derived from `NEXTAUTH_SECRET` with HKDF (fixed label `pin-pepper-v1`), so there is nothing new to set in production and the key never touches the database or its backups. Verification tries the peppered hash first, then the old plain bcrypt, then legacy plaintext; a row in an older format is rehashed with the pepper on its next successful sign-in, so Braylee's existing 4-digit PIN keeps working and upgrades itself the first time she signs in.
+
+**Rotating `NEXTAUTH_SECRET` invalidates every peppered PIN and student ID** (Braylee and all saved cadets) along with all sessions. Braylee's PIN would have to be reset by hand (a plain `bcrypt` hash of the PIN in `User.pin` is accepted and re-peppered on sign-in); saved cadets would have to save again. Do not rotate it casually.
+
+The password-manager opt-out for these fields (text input with a CSS mask, `autocomplete="off"`, `data-1p-ignore` etc.) is deliberate: do not turn them into `type="password"` fields.
