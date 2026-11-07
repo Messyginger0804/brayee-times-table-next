@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { speakCheer, speakBigCheer, speakSpelling, setMuted, isMuted, pickVoice, resetCheerVoice, CHEER_GAP_MS, CHEER_SETTLE_MS, MUTE_KEY } from '../../lib/cheerVoice';
+import { resetVoice } from '../../lib/voice';
+import { speakCheer, speakBigCheer, speakSpelling, setMuted, isMuted, resetCheerVoice, CHEER_GAP_MS, CHEER_SETTLE_MS, MUTE_KEY } from '../../lib/cheerVoice';
 
 let synth;
 let spoken;
@@ -17,6 +18,7 @@ beforeEach(() => {
   vi.stubGlobal('window', { speechSynthesis: synth });
   vi.stubGlobal('SpeechSynthesisUtterance', function Utt(t) { this.text = t; });
   resetCheerVoice();
+  resetVoice();
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -169,15 +171,5 @@ describe('spelling priority', () => {
     vi.advanceTimersByTime(16000);
     speakCheer('Two'); flush();
     expect(spoken.at(-1).text).toBe('Two');
-  });
-});
-
-describe('pickVoice', () => {
-  it('prefers bright names, then en-US, then any English, else null', () => {
-    expect(pickVoice([{ name: 'X', lang: 'en-GB' }, { name: 'Google US English', lang: 'en-US' }]).name).toBe('Google US English');
-    expect(pickVoice([{ name: 'X', lang: 'en-GB' }, { name: 'Y', lang: 'en-US' }]).name).toBe('Y');
-    expect(pickVoice([{ name: 'X', lang: 'en-AU' }]).name).toBe('X');
-    expect(pickVoice([{ name: 'Hans', lang: 'de-DE' }])).toBeNull();
-    expect(pickVoice()).toBeNull();
   });
 });
