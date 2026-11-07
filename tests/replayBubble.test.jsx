@@ -18,7 +18,7 @@ describe('replayable SpeechBubble', () => {
     document.body.appendChild(el);
     const root = createRoot(el);
     await act(async () => { root.render(h('div', { onClick: parentClick }, h(SpeechBubble, { text: 'Great job! 🚀', replay: true }))); });
-    const btn = el.querySelector('button[aria-label="Hear Braylee say it again"]');
+    const btn = el.querySelector('button[aria-label$="Hear Braylee say it again"]');
     expect(btn).toBeTruthy();
     expect(el.querySelectorAll('[role="status"]')).toHaveLength(1);
     expect(el.querySelector('[role="status"]').textContent).toBe('Great job! 🚀');

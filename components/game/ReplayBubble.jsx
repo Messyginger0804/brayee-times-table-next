@@ -5,13 +5,13 @@ import { replayCheer } from '../../lib/cheerVoice';
 /**
  * A speech bubble you can tap to hear Braylee say its text again (lib/cheerVoice replayCheer: respects mute,
  * never talks over spelling speech). A real button, so Enter / Space work; at least 44x44 px. Children (e.g. the tail)
- * render before the text. The text itself is announced by the caller's live region, so the label stays short.
+ * render before the text. The text itself is announced by the caller's live region, so the button is not a live region (no double announce). The label starts with the visible text (WCAG 2.5.3).
  */
 export default function ReplayBubble({ text, className = '', children, ...motionProps }) {
   return (
     <motion.button
       type="button"
-      aria-label="Hear Braylee say it again"
+      aria-label={`${text}. Hear Braylee say it again`}
       onClick={(e) => { e.stopPropagation(); replayCheer(text); }}
       className={`pointer-events-auto min-h-[44px] min-w-[44px] cursor-pointer rounded-chunk border-2 border-neon-cyan bg-ink text-body font-bold text-space-950 shadow-glow-cyan focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon-cyan active:brightness-90 motion-reduce:transition-none ${className}`}
       {...motionProps}

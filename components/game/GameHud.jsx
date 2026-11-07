@@ -8,8 +8,9 @@ import AstronautStage from './AstronautStage';
 export default function GameHud({ level, streak, score, scoreLabel = 'Stars' }) {
   return (
     // Tall phones: the astronaut hangs into the (otherwise empty) GIF slot row below the stats.
-    // Shorter screens: it sits beside the stats so nothing is covered.
-    <div className="relative flex items-center justify-center gap-2">
+    // Shorter screens: it sits beside the stats, and the row reserves room for its tappable speech bubble (hangs below it)
+    // so the bubble never sits on the GIF card / question card and swallows taps meant for them.
+    <div className="relative flex items-center justify-center gap-2 [@media(max-height:819px)]:pb-[4.25rem]">
     <AstronautStage size={92} className="relative [@media(min-height:820px)]:absolute [@media(min-height:820px)]:left-1 [@media(min-height:820px)]:top-full" />
     <div className="flex min-w-0 flex-wrap items-center justify-start gap-2 py-1 [@media(min-height:820px)]:justify-center" role="group" aria-label="Your stats">
       {level != null && <LevelIndicator level={level} />}

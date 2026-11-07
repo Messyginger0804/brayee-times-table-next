@@ -225,11 +225,34 @@ describe('pre-generated clips', () => {
     speakCheer('Woohoo!'); flush();
     expect(audios).toHaveLength(1);
   });
-  it('falls back to speech when play() is rejected', async () => {
-    playResult = () => Promise.reject(new Error('NotAllowedError'));
+  const domErr = (name) => Object.assign(new Error(name), { name });
+  it.each(['NotAllowedError', 'AbortError'])('%s from play() speaks this time but does not blacklist the clip', async (name) => {
+    playResult = () => Promise.reject(domErr(name));
     speakCheer('Great job!'); flush();
     await flushAsync();
     expect(spoken.map((u) => u.text)).toEqual(['Great job!']);
+    finish();
+    vi.advanceTimersByTime(CHEER_GAP_MS);
+    playResult = () => Promise.resolve();
+    speakCheer('Great job!'); flush();
+    expect(audios).toHaveLength(2); // requested the clip again
+  });
+  it('a decode failure from play() (NotSupportedError) blacklists the clip', async () => {
+    playResult = () => Promise.reject(domErr('NotSupportedError'));
+    speakCheer('Great job!'); flush();
+    await flushAsync();
+    expect(spoken.map((u) => u.text)).toEqual(['Great job!']);
+    finish();
+    vi.advanceTimersByTime(CHEER_GAP_MS);
+    speakCheer('Great job!'); flush();
+    expect(audios).toHaveLength(1);
+    expect(spoken).toHaveLength(2);
+  });
+  it('replay leaves a pending big cheer queued', () => {
+    speakBigCheer('Mission complete!');
+    replayCheer('Great job!');
+    flush();
+    expect(audios.map((x) => x.url)).toEqual(['/audio/braylee/great-job.mp3', '/audio/braylee/mission-complete.mp3']);
   });
   it('falls back to speech once on a load error (404), then skips the clip for that line', () => {
     speakCheer('Great job!'); flush();
