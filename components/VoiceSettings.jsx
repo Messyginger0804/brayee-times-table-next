@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Button from './ui/Button';
 import { useCheerMuted } from '../lib/cheerVoice';
@@ -14,12 +14,14 @@ const FOCUSABLE = 'button, select, input, [href], [tabindex]:not([tabindex="-1"]
 function Dialog({ open, onClose, labelledBy, children }) {
   const ref = useRef(null);
   const reduced = useReducedMotion();
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose; // keep the effect keyed on `open` only, so a parent re-render never re-grabs focus
   useEffect(() => {
     if (!open) return undefined;
     const prev = document.activeElement;
     ref.current?.querySelector(FOCUSABLE)?.focus();
     const onKey = (e) => {
-      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Escape') { closeRef.current(); return; }
       if (e.key !== 'Tab') return;
       const items = [...ref.current.querySelectorAll(FOCUSABLE)].filter((el) => !el.disabled);
       const at = items.indexOf(document.activeElement);
@@ -28,7 +30,7 @@ function Dialog({ open, onClose, labelledBy, children }) {
     };
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('keydown', onKey); prev?.focus?.(); };
-  }, [open, onClose]);
+  }, [open]);
   const t = reduced ? { duration: 0 } : { type: 'spring', stiffness: 340, damping: 26 };
   return (
     <AnimatePresence>
@@ -127,6 +129,7 @@ export default function VoiceSettings() {
   const [open, setOpen] = useState(false);
   const [supported, setSupported] = useState(false);
   const titleId = useId();
+  const close = useCallback(() => setOpen(false), []);
   useEffect(() => { setSupported(isSpeechAvailable()); loadVoices(); }, []);
   if (!supported) return null;
   return (
@@ -134,8 +137,8 @@ export default function VoiceSettings() {
       <Button tone="ghost" size="sm" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label="Voice settings" title="Voice settings">
         <span aria-hidden="true">⚙️</span> Voice
       </Button>
-      <Dialog open={open} onClose={() => setOpen(false)} labelledBy={titleId}>
-        <VoiceForm onClose={() => setOpen(false)} titleId={titleId} />
+      <Dialog open={open} onClose={close} labelledBy={titleId}>
+        <VoiceForm onClose={close} titleId={titleId} />
       </Dialog>
     </>
   );

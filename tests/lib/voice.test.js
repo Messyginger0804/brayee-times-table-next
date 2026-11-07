@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   pickDefaultVoice, englishVoices, friendlyName, loadVoices, speak, getSettings, updateSettings, resolveVoice,
-  resetVoice, SETTINGS_KEY, KID_PITCH, CHILD_VOICE_PITCH, SPEED_MAX,
+  resetVoice, SETTINGS_KEY, KID_PITCH, SPELLING_KID_PITCH, CHILD_VOICE_PITCH, SPEED_MAX,
 } from '../../lib/voice';
 
 const v = (name, lang = 'en-US', extra = {}) => ({ name, lang, voiceURI: name, ...extra });
@@ -132,6 +132,18 @@ describe('speak', () => {
     updateSettings({ kid: false });
     expect(speak('Hi').pitch).toBe(1);
   });
+  it('spelling caps the rate at 1.0 and lowers the kid pitch; cheers keep the full settings', () => {
+    synth.voices = [v('Samantha')];
+    updateSettings({ speed: 1.3 });
+    const s = speak('B D P T', { rateScale: 0.95, spelling: true });
+    expect(s.rate).toBe(1);
+    expect(s.pitch).toBe(SPELLING_KID_PITCH);
+    const c = speak('Yay!', { rateScale: 1.05 });
+    expect(c.rate).toBe(1.37);
+    expect(c.pitch).toBe(KID_PITCH);
+    updateSettings({ speed: 0.8 });
+    expect(speak('word', { rateScale: 0.95, spelling: true }).rate).toBe(0.76);
+  });
   it('still speaks with the system voice when there are no voices, and is a no-op without speech', () => {
     expect(speak('Hi').voice).toBeUndefined();
     vi.stubGlobal('window', {});
@@ -145,7 +157,8 @@ describe('all speech routes through lib/voice.js', () => {
     return statSync(p).isDirectory() ? walk(p) : /\.(jsx?|tsx?)$/.test(f) ? [p] : [];
   });
   it('no other source file touches speechSynthesis or SpeechSynthesisUtterance', () => {
-    const offenders = ['app', 'components', 'lib']
+    const offenders = readdirSync(process.cwd())
+      .filter((d) => !/^(node_modules|tests|coverage|\.[^/]*)$/.test(d) && statSync(join(process.cwd(), d)).isDirectory())
       .flatMap((d) => walk(join(process.cwd(), d)))
       .filter((f) => !f.endsWith(join('lib', 'voice.js')))
       .filter((f) => /speechSynthesis|SpeechSynthesisUtterance/.test(readFileSync(f, 'utf8')));

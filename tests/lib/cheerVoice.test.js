@@ -173,3 +173,18 @@ describe('spelling priority', () => {
     expect(spoken.at(-1).text).toBe('Two');
   });
 });
+
+describe('speakSpelling', () => {
+  it('a stale end event from a cancelled utterance does not clear the new one', () => {
+    speakSpelling('first');
+    const first = spoken[0];
+    speakSpelling('second');
+    first.onend(); // the browser reports the cancelled one late
+    speakCheer('Yay!'); flush();
+    expect(spoken.map((u) => u.text)).toEqual(['first', 'second']); // still busy: cheer held back
+    spoken[1].onend(); finish();
+    vi.advanceTimersByTime(CHEER_GAP_MS);
+    speakCheer('Yay!'); flush();
+    expect(spoken.at(-1).text).toBe('Yay!');
+  });
+});
