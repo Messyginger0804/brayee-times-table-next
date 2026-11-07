@@ -16,8 +16,8 @@ export default function CredentialsForm({ name, setName, pin, setPin, error, loa
       </div>
       <div>
         <label htmlFor="student-id" className="block text-body font-bold">Student ID</label>
-        <p id="student-id-help" className="mb-1 text-left text-body text-ink-dim">The 6 digit number you use for lunch at school</p>
-        <SecretInput id="student-id" name="student_number" className={`${fieldCls} tracking-[0.5em]`} placeholder="••••••" value={pin} maxLength={STUDENT_ID_LENGTH}
+        <p id="student-id-help" className="mb-1 text-left text-body text-ink-dim">The 7 digit number you use for lunch at school</p>
+        <SecretInput id="student-id" name="student_number" className={`${fieldCls} tracking-[0.5em]`} placeholder="•••••••" value={pin} maxLength={STUDENT_ID_LENGTH}
           pattern={STUDENT_ID_PATTERN} describedBy="student-id-help" onChange={setPin} required />
       </div>
       <div aria-live="polite" className="min-h-[1.5rem]">

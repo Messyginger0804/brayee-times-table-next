@@ -82,7 +82,7 @@ sequenceDiagram
   S-->>B: session JWT {id, gk = seat hash}
   B->>S: GET /api/auth/me (polled until 200)
   Note over B,D: Braylee path
-  B->>S: signIn('credentials', name + student ID, exactly 6 digits)
+  B->>S: signIn('credentials', name + student ID, exactly 7 digits)
   S->>D: claim a login attempt, bcrypt compare against the peppered hash
   S-->>B: session JWT {id, sc = true for a saved cadet}
   B->>S: POST /api/auth/link-cookie (confirms session)
@@ -95,9 +95,9 @@ sequenceDiagram
 
 ### Student ID sign-in (Braylee and saved cadets)
 
-- next-auth Credentials provider (`lib/auth.js`) calls `verifyPin` (`lib/pinAuth.js`) with a name and a student ID of exactly 6 digits (`lib/cadetNames.js` holds the one definition). The login page asks for both: Braylee types her name too. The match on the name is exact first, then case-insensitive when unambiguous. Four-digit PINs are not accepted.
+- next-auth Credentials provider (`lib/auth.js`) calls `verifyPin` (`lib/pinAuth.js`) with a name and a student ID of exactly 7 digits (`lib/cadetNames.js` holds the one definition). The login page asks for both: Braylee types her name too. The match on the name is exact first, then case-insensitive when unambiguous. Four-digit PINs are not accepted.
 - The ID lives in `User.pin` as `bcrypt(HMAC-SHA256(pepper, id))` (10 rounds). The pepper is derived from `NEXTAUTH_SECRET` with HKDF, so a stolen database alone cannot be brute forced, and rotating `NEXTAUTH_SECRET` invalidates every student ID. Verification tries the peppered hash, then plain bcrypt, then a legacy plaintext value. A row in an older format is rewritten as peppered on a successful sign-in, but only when `VERCEL_ENV=production` (or `PIN_REHASH=1`), so a preview or laptop pointed at the prod DB with another secret cannot rewrite Braylee's hash.
-- The seed (`prisma/seed-users.js`) takes the initial value from `SEED_BRAYLEE_PIN` (exactly 6 digits). If it is unset, a random one is generated and printed once, only when the user row is created. The seed never overwrites an existing user. Nothing is stored in source. To set or reset a named account's ID use `npm run db:set-student-id` (see [OPERATIONS.md](OPERATIONS.md)).
+- The seed (`prisma/seed-users.js`) takes the initial value from `SEED_BRAYLEE_PIN` (exactly 7 digits). If it is unset, a random one is generated and printed once, only when the user row is created. The seed never overwrites an existing user. Nothing is stored in source. To set or reset a named account's ID use `npm run db:set-student-id` (see [OPERATIONS.md](OPERATIONS.md)).
 - **Uniform failures.** An unknown name, a guest seat name, a wrong ID and a resting account all give the same HTTP 401 and message ("That didn't work. Check your name and student ID, or try again in a little while.") with the same bcrypt work, so the form cannot be used to find out which nicknames exist. Only the per-IP limit answers 429.
 - The ID is never logged, returned or stored in plaintext. The input is a masked text field (not `type="password"`) so password managers do not offer to save it on a shared device.
 

@@ -101,7 +101,7 @@ The runtime fails safe instead of crash-looping. A Prisma "column/table does not
 
 Cleanup rules (`scripts/cleanup-accounts.js`): exact, case-sensitive names (KEEP `Braylee`; MERGE `braylee`, `bray`, `Bray`); everything else non-guest is deleted with all of its data (it refuses to run while saved cadets exist unless `--include-saved-cadets` is passed); guest seat rows are never touched. Attempt/Test/SpellingAttempt/MathAttempt rows are re-pointed. `UserProblem` conflicts: `everCorrect` OR, `updatedAt` latest, `mastered` recomputed by `lib/mastery.js` from the merged attempts (the table has no counters). `MathSkillProgress` conflicts: attempts/correct summed, highest `levelIndex`, mastered OR. Braylee's `level` becomes the highest of her accounts. Refuses a non-localhost `DATABASE_URL` without `--i-have-a-backup`.
 
-Seed: `prisma/seed-users.js` only ensures `Braylee` (it no longer creates other users, which the container entrypoint would otherwise re-create on every start). The student ID for a newly created row comes from `SEED_BRAYLEE_PIN` (exactly 6 digits), or is generated and printed once; see [OPERATIONS.md](OPERATIONS.md#seeding-and-the-first-pin).
+Seed: `prisma/seed-users.js` only ensures `Braylee` (it no longer creates other users, which the container entrypoint would otherwise re-create on every start). The student ID for a newly created row comes from `SEED_BRAYLEE_PIN` (exactly 7 digits), or is generated and printed once; see [OPERATIONS.md](OPERATIONS.md#seeding-and-the-first-pin).
 
 ## Notes
 
@@ -163,7 +163,7 @@ Behaviour: a saved cadet's progress stays on the seat's own row (`id` unchanged)
 
 ### PIN pepper (no new env var)
 
-New hashes are `bcrypt(HMAC-SHA256(pepper, secret))`. The pepper is derived from `NEXTAUTH_SECRET` with HKDF (fixed label `pin-pepper-v1`), so there is nothing new to set in production and the key never touches the database or its backups. Verification tries the peppered hash first, then the old plain bcrypt, then legacy plaintext; a row in an older format is rehashed with the pepper on its next successful sign-in, so a plain bcrypt hash (such as the one `npm run db:set-student-id` writes for Braylee) keeps working and upgrades itself the first time she signs in. Note that her old 4-digit PIN does not: the sign-in form and server require exactly 6 digits (see "Student ID rule").
+New hashes are `bcrypt(HMAC-SHA256(pepper, secret))`. The pepper is derived from `NEXTAUTH_SECRET` with HKDF (fixed label `pin-pepper-v1`), so there is nothing new to set in production and the key never touches the database or its backups. Verification tries the peppered hash first, then the old plain bcrypt, then legacy plaintext; a row in an older format is rehashed with the pepper on its next successful sign-in, so a plain bcrypt hash (such as the one `npm run db:set-student-id` writes for Braylee) keeps working and upgrades itself the first time she signs in. Note that her old 4-digit PIN does not: the sign-in form and server require exactly 7 digits (see "Student ID rule").
 
 **Rehash rule:** the legacy-to-peppered rewrite on sign-in only happens when `VERCEL_ENV=production` (or `PIN_REHASH=1`, for local testing). Preview deployments and laptops only verify, so pointing a non-production process (with a different `NEXTAUTH_SECRET`) at the prod DB can never rewrite Braylee's hash under the wrong key. New saves are peppered in every environment, since each has its own DB. After deploy, Braylee's hash upgrades on her first production sign-in.
 
@@ -171,9 +171,9 @@ New hashes are `bcrypt(HMAC-SHA256(pepper, secret))`. The pepper is derived from
 
 The password-manager opt-out for these fields (text input with a CSS mask, `autocomplete="off"`, `data-1p-ignore` etc.) is deliberate: do not turn them into `type="password"` fields.
 
-### Student ID rule (exactly 6 digits)
+### Student ID rule (exactly 7 digits)
 
-Sign-in and "Save my cadet" both take a student ID of exactly 6 digits, 0-9 only (`STUDENT_ID_LENGTH` in `lib/cadetNames.js`). Anything else (4, 5, 7 or 8 digits, letters, spaces, dashes, non-ASCII digits) is rejected and nothing is trimmed, so Braylee's old 4-digit PIN stops working the moment this deploys. Set her account to her student ID right after deploying, with the script (never store a plain value):
+Sign-in and "Save my cadet" both take a student ID of exactly 7 digits, 0-9 only (`STUDENT_ID_LENGTH` in `lib/cadetNames.js`). Anything else (4, 5, 6 or 8 digits, letters, spaces, dashes, non-ASCII digits) is rejected and nothing is trimmed, so Braylee's old 4-digit PIN stops working the moment this deploys. Set her account to her student ID right after deploying, with the script (never store a plain value):
 
 ```
 npm run db:set-student-id -- --name Braylee --i-have-a-backup

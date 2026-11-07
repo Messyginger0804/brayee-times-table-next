@@ -10,7 +10,7 @@ import { GUEST_COOKIE } from '../../../../lib/guests';
 export const dynamic = 'force-dynamic';
 
 // POST { name, secret, confirm } - a signed-in GUEST turns their seat into a saved cadet (progress is kept).
-// `secret` is the student ID (exactly 6 digits): it is hashed in lib/savedCadets.js and never stored, logged or returned. Answers { ok, name } only.
+// `secret` is the student ID (exactly 7 digits): it is hashed in lib/savedCadets.js and never stored, logged or returned. Answers { ok, name } only.
 // The client then signs in with the new name + ID, because the guest session's seat key no longer exists.
 const SAVE_LIMIT = 10; // per IP per window, per server instance (best effort)
 const SAVE_WINDOW_MS = 10 * 60 * 1000;

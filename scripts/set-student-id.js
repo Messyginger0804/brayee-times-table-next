@@ -61,7 +61,7 @@ async function main() {
     process.exit(2);
   }
   const id = process.stdin.isTTY ? await readHidden('Student ID (hidden): ') : await readFromStdin();
-  if (!isValidStudentId(id)) { console.error('The student ID must be exactly 6 digits (0-9 only).'); process.exit(2); }
+  if (!isValidStudentId(id)) { console.error('The student ID must be exactly 7 digits (0-9 only).'); process.exit(2); }
 
   const prisma = new PrismaClient();
   try {
