@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { fx, sceneFx, useSceneState } from '../../lib/sceneFx';
@@ -43,6 +43,7 @@ function MapPlanet({ id, state, kind, reduced }) {
   const skin = useMemo(() => planetTexture(state === 'locked' ? LOCKED_KIND : kind % LOCKED_KIND), [kind, state]);
   const k = PLANET_KINDS[kind % LOCKED_KIND];
   const ring = useMemo(() => (state === 'mastered' ? ringTexture(0.7, ['#d8ffb0', '#ffe27a', '#ffffff']) : null), [state]);
+  useEffect(() => () => ring?.dispose(), [ring]); // R3F frees the material, not textures passed to `map`
   const wpp = (2 * CAM_Z * TAN) / size.height; // world units per CSS pixel on the z=0 plane
 
   useFrame((s, dt) => {

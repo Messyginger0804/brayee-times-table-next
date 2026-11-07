@@ -53,8 +53,10 @@ function useSceneBridge(reduced, ready) {
 
 /**
  * Fixed full-screen backdrop behind all UI. Always renders the CSS gradient + starfield (instant,
- * costs nothing). The WebGL scene is mounted after idle, only if WebGL works and the user has not
- * asked for reduced motion; it never receives pointer events, so it cannot block input.
+ * costs nothing). The WebGL scene is mounted after idle, only if WebGL works; with reduced motion it still
+ * mounts but only redraws (static frames) when the game or page changes. It never receives pointer events,
+ * so it cannot block input. The canvas layer is a sibling of the -z-10 backdrop, not a child, so its z-index
+ * (-9, or 45 for the level-up party) ranks in the root stacking context and can rise above the page.
  */
 export default function SpaceBackground() {
   const reduced = usePrefersReducedMotion();
@@ -77,19 +79,21 @@ export default function SpaceBackground() {
   }, []);
 
   return (
-    <div aria-hidden="true" className="fixed inset-0 -z-10 overflow-hidden bg-space-gradient pointer-events-none">
-      <div className={`absolute inset-0 transition-opacity duration-700 ${sceneReady ? 'opacity-0' : 'opacity-100'}`}>
-        <div className="stars stars-a" />
-        <div className="stars stars-b" />
-        <div className="stars stars-c" />
+    <>
+      <div aria-hidden="true" className="fixed inset-0 -z-10 overflow-hidden bg-space-gradient pointer-events-none">
+        <div className={`absolute inset-0 transition-opacity duration-700 ${sceneReady ? 'opacity-0' : 'opacity-100'}`}>
+          <div className="stars stars-a" />
+          <div className="stars stars-b" />
+          <div className="stars stars-c" />
+        </div>
+        {!sceneReady && <FallbackRocket correct={correct} reduced={reduced} />}
       </div>
-      {!sceneReady && <FallbackRocket correct={correct} reduced={reduced} />}
-      {/* Own layer so it can hop above the page for the ~2s level-up party (never receives pointer events) */}
+      {/* One canvas (one WebGL context). Own top-level layer so it can hop above the page for the ~2s level-up party */}
       {want3d && (
-        <div className="pointer-events-none fixed inset-0" style={{ zIndex: celebrating ? 45 : -9 }}>
+        <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden" style={{ zIndex: celebrating ? 45 : -9 }}>
           <SpaceScene reduced={reduced} onReady={() => setSceneReady(true)} onFail={() => { setWant3d(false); setSceneReady(false); }} />
         </div>
       )}
-    </div>
+    </>
   );
 }

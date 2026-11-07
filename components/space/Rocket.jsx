@@ -30,7 +30,7 @@ function orbitAt(g, t, aspect, phone) {
   return Math.atan2(Math.cos(a) * ry, -Math.sin(a) * rx) - Math.PI / 2;
 }
 
-function useRocketEvents(thrust, wobble, boost) {
+function useRocketEvents(thrust, wobble, boost, reduced) {
   const last = useRef(gameFx.getState());
   useEffect(() => {
     const off = gameFx.subscribe(() => {
@@ -40,11 +40,12 @@ function useRocketEvents(thrust, wobble, boost) {
       last.current = s;
     });
     const offEv = gameFx.on((e) => {
+      if (reduced) return; // static frames only: no boost, launch or trail
       if (e.type === 'streak') { boost.current = 1; sceneFx.busy(2600); }
       if (e.type === 'mastered') { fx.launch = now(); sceneFx.busy(2600); }
     });
     return () => { off(); offEv(); };
-  }, [thrust, wobble, boost]);
+  }, [thrust, wobble, boost, reduced]);
 }
 
 export default function Rocket({ reduced }) {
@@ -54,7 +55,7 @@ export default function Rocket({ reduced }) {
   const wobble = useRef(0);
   const boost = useRef(0);
   const { viewport, size } = useThree();
-  useRocketEvents(thrust, wobble, boost);
+  useRocketEvents(thrust, wobble, boost, reduced);
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -78,9 +79,9 @@ export default function Rocket({ reduced }) {
       g.scale.setScalar(scale);
       g.position.x = tg.x;
       g.position.z = 0;
-      g.position.y = THREE.MathUtils.damp(g.position.y, tg.y, 2.2, dt);
+      g.position.y = reduced ? tg.y : THREE.MathUtils.damp(g.position.y, tg.y, 2.2, dt); // reduced: snap, no glide
       launchLift(g, viewport.height);
-      g.rotation.z = -0.25 + Math.sin(t * 28) * 0.01 * thrust.current + Math.sin(wobble.current * 14) * 0.18 * wobble.current;
+      g.rotation.z = reduced ? -0.25 : -0.25 + Math.sin(t * 28) * 0.01 * thrust.current + Math.sin(wobble.current * 14) * 0.18 * wobble.current;
       head = g.rotation.z;
     }
     rocketPos.x = g.position.x; rocketPos.y = g.position.y; rocketPos.scale = g.scale.x;
@@ -210,6 +211,7 @@ export function Burst({ reduced }) {
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
+    if (reduced) return; // no star burst with reduced motion
     const s = gameFx.getState();
     if (s.burst !== lastBurst.current) {
       lastBurst.current = s.burst;

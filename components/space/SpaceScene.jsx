@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { fx, sceneFx, useSceneState } from '../../lib/sceneFx';
+import { gameFx } from '../../lib/gameFx';
 import { CAM_Z, FOV, PointsCloud, TAN, rng, useSprite } from './sprites';
 import { disposePlanetTextures } from './planetTextures';
 import Rocket, { Burst, Trail } from './Rocket';
@@ -13,6 +14,8 @@ import { usePageVisible } from './useSpaceEnv';
 // Only loaded the first time somebody levels up.
 const Celebration = lazy(() => import('./Celebration'));
 
+const AMBIENT_MS = 50; // idle login/map drift: ~20 fps is plenty for stars this slow
+const CALM_MS = 33; // answering: ~30 fps
 const CALM = 0.45; // star drift while answering (nothing busy near the question or keypad)
 
 /** One parallax layer of points. Positions are stored as normalized (u,v) and mapped to the visible frustum. */
@@ -75,8 +78,9 @@ function Controller() {
 }
 
 /**
- * Keeps the demand-driven canvas drawing: full rate while something is moving (login, map, whoosh, burst, party),
- * ~30fps while calmly answering, nothing at all when motion is reduced (it redraws only when the page changes).
+ * Keeps the demand-driven canvas drawing: full rate only while something active is moving (whoosh, tap, hover, burst,
+ * party, popup); ~20fps for ambient drift (login, map) and ~30fps while answering; nothing while the tab is hidden. With reduced motion it
+ * draws one static frame per page or game change (scene store, gameFx, scroll, resize).
  */
 function Ticker({ reduced, visible }) {
   const invalidate = useThree((s) => s.invalidate);
@@ -84,6 +88,7 @@ function Ticker({ reduced, visible }) {
     if (!visible) return undefined;
     const poke = () => invalidate();
     const offStore = sceneFx.subscribe(poke);
+    const offGame = [gameFx.subscribe(poke), gameFx.on(poke)];
     window.addEventListener('scroll', poke, { passive: true, capture: true });
     window.addEventListener('resize', poke);
     let raf = 0;
@@ -91,12 +96,13 @@ function Ticker({ reduced, visible }) {
     const loop = (t) => {
       raf = requestAnimationFrame(loop);
       const s = sceneFx.get();
-      const busy = s.scene === 'login' || s.scene === 'home' || s.popups > 0 || performance.now() < fx.busyUntil;
-      if (t - last >= (busy ? 0 : 33) - 2) { last = t; invalidate(); }
+      const busy = s.popups > 0 || !!fx.hover || performance.now() < fx.busyUntil;
+      const every = busy ? 0 : s.scene === 'login' || s.scene === 'home' ? AMBIENT_MS : CALM_MS;
+      if (t - last >= every - 2) { last = t; invalidate(); }
     };
     if (reduced) poke(); else raf = requestAnimationFrame(loop);
     return () => {
-      cancelAnimationFrame(raf); offStore();
+      cancelAnimationFrame(raf); offStore(); offGame.forEach((off) => off());
       window.removeEventListener('scroll', poke, true);
       window.removeEventListener('resize', poke);
     };
