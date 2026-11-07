@@ -18,7 +18,7 @@ async function postAttempt(payload) {
 function celebrate(c, lvl, { setLevelIndex, setModal, feedback }) {
   if (!c) return;
   if (c.kind === 'level') setLevelIndex(lvl);
-  feedback.levelUp();
+  feedback.levelUp({ modal: true });
   if (c.kind === 'mastered') { gameFx.emit('mastered'); try { triggerFireworks({ duration: 2200, particles: 260 }); } catch (_) {} }
   setModal(c);
 }
