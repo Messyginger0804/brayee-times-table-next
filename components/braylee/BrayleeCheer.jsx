@@ -42,7 +42,7 @@ export default function BrayleeCheer({ moment = 'idle', n, name, pose = 'welcome
       <div className="shrink-0">
         <Astronaut pose={reduce ? 'idle' : pose} size={size} />
       </div>
-      <SpeechBubble text={text} tail={row ? 'left' : 'top'} className={row ? 'min-w-0 flex-1' : 'w-full max-w-[19rem]'} />
+      <SpeechBubble replay={speak} text={text} tail={row ? 'left' : 'top'} className={row ? 'min-w-0 flex-1' : 'w-full max-w-[19rem]'} />
     </div>
   );
 }

@@ -1,0 +1,153 @@
+// Braylee's pre-generated voice clips: the single source of truth for what she says aloud.
+// Plain ESM with no imports, so a Node script outside the repo can `import { BRAYLEE_CLIPS } from '<repo>/config/brayleeClips.mjs'`
+// and synthesize `text` into `file` (relative to the repo root) for every entry.
+//
+// - `id`   stable file name; never rename one (change `text` and regenerate instead).
+// - `text` the exact words to speak: no emoji, no {n}/{name} placeholders.
+// - `file` where the generated mp3 goes; the app serves it from `url`.
+//
+// Only cheers/pep lines live here. Spelling words and sentences stay on the browser voice.
+// Placeholder lines get fixed variants: {n} lines for the streak counts the game can show
+// (the GIF milestones 3, 5, 10, then every 10th, up to STREAK_CLIP_COUNTS' top; bigger streaks use the browser voice),
+// {name} lines as name-free versions. tests/lib/brayleeClips.test.js fails when config/brayleeLines.js drifts from this list.
+export const STREAK_CLIP_COUNTS = [3, 5, 10, 20, 30];
+
+const CLIP_DIR = 'public/audio/braylee';
+const CLIP_URL_BASE = '/audio/braylee';
+
+const CLIP_TEXTS = [
+  ["lets-play", "Let's play!"],
+  ["ready-set-go", "Ready? Set? Go!"],
+  ["im-so-excited", "I'm so excited!"],
+  ["lets-do-this", "Let's do this!"],
+  ["blast-off-with-me", "Blast off with me!"],
+  ["time-to-play-cadet", "Time to play, Cadet!"],
+  ["yes-you-did-it", "Yes! You did it!"],
+  ["i-knew-it", "I knew it!"],
+  ["woohoo", "Woohoo!"],
+  ["great-job", "Great job!"],
+  ["thats-right", "That's right!"],
+  ["youre-so-smart", "You're so smart!"],
+  ["high-five", "High five!"],
+  ["3-in-a-row", "3 in a row!"],
+  ["5-in-a-row", "5 in a row!"],
+  ["10-in-a-row", "10 in a row!"],
+  ["20-in-a-row", "20 in a row!"],
+  ["30-in-a-row", "30 in a row!"],
+  ["3-straight-wow", "3 straight! Wow!"],
+  ["5-straight-wow", "5 straight! Wow!"],
+  ["10-straight-wow", "10 straight! Wow!"],
+  ["20-straight-wow", "20 straight! Wow!"],
+  ["30-straight-wow", "30 straight! Wow!"],
+  ["im-cheering-3", "I'm cheering! 3!"],
+  ["im-cheering-5", "I'm cheering! 5!"],
+  ["im-cheering-10", "I'm cheering! 10!"],
+  ["im-cheering-20", "I'm cheering! 20!"],
+  ["im-cheering-30", "I'm cheering! 30!"],
+  ["unstoppable-3", "Unstoppable! 3!"],
+  ["unstoppable-5", "Unstoppable! 5!"],
+  ["unstoppable-10", "Unstoppable! 10!"],
+  ["unstoppable-20", "Unstoppable! 20!"],
+  ["unstoppable-30", "Unstoppable! 30!"],
+  ["3-youre-on-fire", "3! You're on fire!"],
+  ["5-youre-on-fire", "5! You're on fire!"],
+  ["10-youre-on-fire", "10! You're on fire!"],
+  ["20-youre-on-fire", "20! You're on fire!"],
+  ["30-youre-on-fire", "30! You're on fire!"],
+  ["go-go-go-3", "Go go go! 3!"],
+  ["go-go-go-5", "Go go go! 5!"],
+  ["go-go-go-10", "Go go go! 10!"],
+  ["go-go-go-20", "Go go go! 20!"],
+  ["go-go-go-30", "Go go go! 30!"],
+  ["level-up-i-knew-it", "Level up! I knew it!"],
+  ["you-did-it-cadet", "You did it, Cadet!"],
+  ["im-so-proud", "I'm so proud!"],
+  ["super-star-level-up", "Super star! Level up!"],
+  ["new-level-woohoo", "New level! Woohoo!"],
+  ["mission-complete", "Mission complete!"],
+  ["youre-a-master", "You're a master!"],
+  ["mastered-it-amazing", "Mastered it! Amazing!"],
+  ["im-so-proud-of-you", "I'm so proud of you!"],
+  ["genius-every-one", "Genius! Every one!"],
+  ["you-totally-got-it", "You totally got it!"],
+  ["wow-a-real-expert", "Wow, a real expert!"],
+  ["so-close-try-again", "So close! Try again!"],
+  ["you-got-this", "You got this!"],
+  ["almost-keep-going", "Almost! Keep going!"],
+  ["thats-okay-again", "That's okay! Again!"],
+  ["shake-it-off-cadet", "Shake it off, Cadet!"],
+  ["i-believe-in-you", "I believe in you!"],
+  ["try-once-more", "Try once more!"],
+  ["you-passed-woohoo", "You passed! Woohoo!"],
+  ["test-complete-super", "Test complete! Super!"],
+  ["you-aced-it-cadet", "You aced it, Cadet!"],
+  ["passed-high-five", "Passed! High five!"],
+  ["smarty-pants", "Smarty pants!"],
+  ["great-try-cadet", "Great try, Cadet!"],
+  ["you-did-so-well", "You did so well!"],
+  ["play-again-i-will-too", "Play again? I will too!"],
+  ["thats-okay-next-time", "That's okay! Next time!"],
+  ["good-game", "Good game!"],
+  ["practice-makes-you-super", "Practice makes you super!"],
+  ["spelled-it-right", "Spelled it right!"],
+  ["super-speller", "Super speller!"],
+  ["yes-perfect-spelling", "Yes! Perfect spelling!"],
+  ["you-spelled-it", "You spelled it!"],
+  ["spelling-star", "Spelling star!"],
+  ["woohoo-nice-spelling", "Woohoo, nice spelling!"],
+  ["spelling-is-tricky", "Spelling is tricky!"],
+  ["almost-next-word", "Almost! Next word!"],
+  ["youll-get-it", "You'll get it!"],
+  ["good-try-speller", "Good try, speller!"],
+  ["keep-spelling-cadet", "Keep spelling, Cadet!"],
+  ["new-mission-unlocked", "New mission unlocked!"],
+  ["look-something-new", "Look, something new!"],
+  ["you-unlocked-it", "You unlocked it!"],
+  ["a-new-world-woohoo", "A new world! Woohoo!"],
+  ["yay-new-stuff", "Yay, new stuff!"],
+  ["you-earned-it", "You earned it!"],
+  ["not-yet-keep-going", "Not yet! Keep going!"],
+  ["almost-there-youll-see", "Almost there! You'll see!"],
+  ["practice-to-unlock", "Practice to unlock!"],
+  ["soon-i-know-it", "Soon! I know it!"],
+  ["lets-unlock-it-together", "Let's unlock it together!"],
+  ["keep-playing-cadet", "Keep playing, Cadet!"],
+  ["try-this-mission-next", "Try this mission next!"],
+  ["next-stop-is-here", "Next stop is here!"],
+  ["tap-the-glowing-one", "Tap the glowing one!"],
+  ["lets-go-this-way", "Let's go this way!"],
+  ["pick-a-mission-cadet", "Pick a mission, Cadet!"],
+  ["i-am-ready-you", "I am ready! You?"],
+  ["ready-when-you-are", "Ready when you are!"],
+  ["youve-got-this", "You've got this!"],
+  ["go-go-go-cadet", "Go go go, Cadet!"],
+  ["im-cheering-for-you", "I'm cheering for you!"],
+  ["hi-i-am-braylee", "Hi! I am Braylee!"],
+  ["hi-friend-lets-play", "Hi friend! Let's play!"],
+  ["welcome-space-explorer", "Welcome, space explorer!"],
+  ["im-braylee-hi", "I'm Braylee! Hi!"],
+  ["yay-you-came-to-play", "Yay, you came to play!"],
+  ["hello-cadet", "Hello, Cadet!"],
+  ["hi-yay", "Hi! Yay!"],
+  ["welcome-back", "Welcome back!"],
+  ["i-missed-you", "I missed you!"],
+  ["hello-again", "Hello again!"],
+  ["ready-lets-go", "Ready? Let's go!"],
+  ["ready-3-2-1-go", "Ready? 3, 2, 1, go!"],
+  ["lets-go", "Let's go!"],
+];
+
+export const BRAYLEE_CLIPS = CLIP_TEXTS.map(([id, text]) => ({
+  id,
+  text,
+  file: `${CLIP_DIR}/${id}.mp3`,
+  url: `${CLIP_URL_BASE}/${id}.mp3`,
+}));
+
+const strip = (t) => String(t).replace(/[\p{Extended_Pictographic}️‍]/gu, '').replace(/\s+/g, ' ').trim();
+const BY_TEXT = new Map(BRAYLEE_CLIPS.map((c) => [c.text, c]));
+
+/** The clip for a line as shown in the bubble (emoji are ignored), or null when none was generated for it. */
+export function findClip(text) {
+  return BY_TEXT.get(strip(text)) || null;
+}
