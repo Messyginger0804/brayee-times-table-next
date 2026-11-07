@@ -151,7 +151,7 @@ describe('PUT /api/me/grade', () => {
 });
 
 describe('POST /api/auth/login', () => {
-  it.each([[{}], [{ name: 'K' }], [{ pin: '1234' }], [{ name: '  ', pin: '1234' }]])('400 for %j', async (b) => {
+  it.each([[{}], [{ name: 'K' }], [{ pin: '12345' }], [{ name: '  ', pin: '12345' }]])('400 for %j', async (b) => {
     expect((await loginPOST(jsonReq(b))).status).toBe(400);
     expect(verifyPin).not.toHaveBeenCalled();
   });
@@ -160,22 +160,22 @@ describe('POST /api/auth/login', () => {
   });
   it('returns the public user fields only', async () => {
     verifyPin.mockResolvedValue({ ok: true, user: { id: 1, name: 'K', level: 2, image: 'i', pin: 'SECRET', failedLoginAttempts: 0 } });
-    const res = await loginPOST(jsonReq({ name: 'K', pin: '1234' }));
+    const res = await loginPOST(jsonReq({ name: 'K', pin: '12345' }));
     expect(await res.json()).toEqual({ id: 1, name: 'K', level: 2, image: 'i' });
   });
   it('bad credentials -> 401', async () => {
-    verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'Invalid name or PIN' });
-    const res = await loginPOST(jsonReq({ name: 'K', pin: '9999' }));
+    verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'bad credentials' });
+    const res = await loginPOST(jsonReq({ name: 'K', pin: '99999' }));
     expect(res.status).toBe(401);
     expect(res.headers.get('Retry-After')).toBeNull();
   });
   it('a 400 from verifyPin (malformed pin) is reported as 401', async () => {
-    verifyPin.mockResolvedValue({ ok: false, status: 400, error: 'Name and a 4-digit PIN required' });
+    verifyPin.mockResolvedValue({ ok: false, status: 400, error: 'Name and your student ID (5 to 8 digits) required' });
     expect((await loginPOST(jsonReq({ name: 'K', pin: 'abc' }))).status).toBe(401);
   });
   it('lockout -> 429 with Retry-After header and body', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 429, error: 'break', retryAfter: 42 });
-    const res = await loginPOST(jsonReq({ name: 'K', pin: '1234' }));
+    const res = await loginPOST(jsonReq({ name: 'K', pin: '12345' }));
     expect(res.status).toBe(429);
     expect(res.headers.get('Retry-After')).toBe('42');
     expect(await res.json()).toEqual({ error: 'break', retryAfter: 42 });

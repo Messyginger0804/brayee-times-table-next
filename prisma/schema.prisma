@@ -51,14 +51,14 @@ model UserProblem {
 model User {
   id                  Int                 @id @default(autoincrement())
   name                String              @unique
-  // bcrypt hash of the 4-digit PIN (legacy rows may still hold a plaintext PIN until their next login). null for guest seats.
+  // bcrypt hash of the student ID, 5-8 digits (HMAC-peppered since saved cadets; legacy rows may still hold plain bcrypt or plaintext until their next login). null for guest seats.
   pin                 String?
   image               String?
   // Times-table level (1 or 2), not a per-skill level.
   level               Int                 @default(1)
   createdAt           DateTime            @default(now())
-  // Login lockout (lib/pinAuth.js): consecutive wrong PINs 5-9 => lockedUntil = now + 1 min, 10-14 => 5 min, 15+ => 30 min.
-  // Both are reset on a correct PIN.
+  // Login lockout (lib/pinAuth.js): consecutive wrong student IDs 5-9 => lockedUntil = now + 1 min, 10-14 => 5 min, 15-19 => 30 min,
+  // 20-24 => 2 h, 25+ => 24 h. Both are reset on a correct student ID.
   failedLoginAttempts Int                 @default(0)
   lockedUntil         DateTime?
   // Unused since the parent screens were removed (kept: additive-only policy)
@@ -71,6 +71,10 @@ model User {
   guestSeat           Int?                @unique
   guestTokenHash      String?             @unique
   lastActiveAt        DateTime?
+  // Saved cadets (lib/savedCadets.js): a guest seat converted into a named account. `name` is the nickname, `pin` the bcrypt hash of the
+  // student ID (5-8 digits). Not a guest any more (isGuest false, no seat, no token). Wiped after SAVED_CADET_RETENTION_DAYS without lastActiveAt.
+  savedCadet          Boolean             @default(false)
+  savedAt             DateTime?
   mathProgress        MathSkillProgress[]
   mathAttempts        MathAttempt[]
   spellingAttempts    SpellingAttempt[]

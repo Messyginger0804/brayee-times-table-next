@@ -28,9 +28,11 @@ erDiagram
 
 | Model | Purpose | Fields that matter |
 |---|---|---|
-| `User` | Braylee's real account and the guest seats | `name` (unique; `Braylee`, or `Guest 001`...), `pin` (bcrypt hash, null for guests), `image` (public path), `level` (times-table level 1 or 2), `grade` (1-6 or null), `failedLoginAttempts` / `lockedUntil` (PIN lockout), `isGuest`, `guestSeat` (unique), `guestTokenHash` (unique sha256 of the cookie secret; null = free seat), `lastActiveAt` (drives the 7-day idle wipe) |
+| `User` | Braylee's real account, the guest seats and saved cadets | `name` (unique; `Braylee`, a saved cadet's nickname, or `Guest 001`...), `pin` (bcrypt hash of the student ID, HMAC-peppered; null for guests; the column name is historical), `image` (public path), `level` (times-table level 1 or 2), `grade` (1-6 or null), `failedLoginAttempts` / `lockedUntil` (student-ID lockout, tiers up to 24 h), `isGuest`, `guestSeat` (unique), `guestTokenHash` (unique sha256 of the cookie secret; null = free seat), `lastActiveAt` (drives the 7-day guest idle wipe and the saved-cadet retention), `savedCadet` (true for a saved cadet, default false), `savedAt` (when the guest was saved, nullable) |
 
-Deleting a user cascades to `UserProblem`, `SpellingAttempt`, `MathSkillProgress`, `MathAttempt`, `SkillUnlock`, `Account` and `Session`. `Attempt` and `Test` do not cascade (the database sets `Attempt.userId` to null on user delete, and `Test` rows block the delete); the guest wipe (`wipeSeat` in `lib/guests.js`) deletes rows from `attempt`, `test`, `spellingAttempt`, `mathAttempt`, `mathSkillProgress`, `userProblem` and `skillUnlock` explicitly, in one transaction with the seat reset.
+Deleting a user cascades to `UserProblem`, `SpellingAttempt`, `MathSkillProgress`, `MathAttempt`, `SkillUnlock`, `Account` and `Session`. `Attempt` and `Test` do not cascade (the database sets `Attempt.userId` to null on user delete, and `Test` rows block the delete); the guest wipe (`wipeSeat` in `lib/guests.js`) deletes rows from `attempt`, `test`, `spellingAttempt`, `mathAttempt`, `mathSkillProgress`, `userProblem` and `skillUnlock` explicitly, in one transaction with the seat reset. A saved cadet is deleted by `purgeInactiveSaved` (`lib/savedCadetPurge.js`) the same way (same `SEAT_TABLES`, plus `account` and `session`, then the user row) after `SAVED_CADET_RETENTION_DAYS` idle days; Braylee is excluded.
+
+A saved cadet is a guest seat row converted in place (`isGuest` false, `guestSeat` and `guestTokenHash` null, `savedCadet` true), so `id` and all progress stay, including `SkillUnlock` rows (they hang off `userId`, so they follow the cadet, and a purge deletes them with the rest). Names are unique case-sensitively in the database; the save transaction also checks case-insensitively.
 
 ### Times tables
 
@@ -77,7 +79,7 @@ The project is additive-only, so these remain in the schema.
 | `Test` table | Only written by an unused route |
 | `SpellingAttempt` table | Never written |
 | `Account`, `Session`, `VerificationToken`, `User.email`, `User.emailVerified` | Adapter requirements, unused |
-| `User.pin` plaintext values | Legacy rows may still hold a plaintext PIN until their next login, which re-hashes it |
+| `User.pin` plaintext values | Legacy rows may still hold a plaintext value, or a plain (un-peppered) bcrypt hash, until their next successful sign-in in production, which re-hashes it with the pepper |
 | `Attempt.userId` nullable | Allows rows without an owner; current code always sets it |
 
 ## Migration history
@@ -91,7 +93,8 @@ Migrations live in `prisma/migrations/<timestamp>_<name>/migration.sql`.
 | `20260401000000_add_grade_and_math_progress` | `User.grade`, `SpellingWord.grade`/`unitId`/`tier`/`syllables`/`source` and indexes, tables `MathSkillProgress` and `MathAttempt` |
 | `20260501000000_add_math_unlocked_by_parent` | `MathSkillProgress.unlockedByParent` |
 | `20260601000000_add_guest_seats` | `User.isGuest`, `guestSeat` (unique), `guestTokenHash` (unique), `lastActiveAt` |
-| `20260701000000_add_skill_unlock` | Table `SkillUnlock` (unique `(userId, skillId)`, FK to `User` with cascade). Additive only |
+| `20260701000000_add_saved_cadets` | `User.savedCadet BOOLEAN NOT NULL DEFAULT false`, `User.savedAt TIMESTAMP(3)` (nullable) |
+| `20260801000000_add_skill_unlock` | Table `SkillUnlock` (unique `(userId, skillId)`, FK to `User` with cascade). Additive only; sorts after `add_saved_cadets` |
 
 Production's migration table also lists two earlier migrations whose source files are not in the repo (`20260129173431_add_login_security`, `20260129174704_add_user_mastery`). Prisma reports them as "not found locally" and carries on. Full adoption steps for production are in [DEPLOY-RUNBOOK.md](DEPLOY-RUNBOOK.md); that document was written for the original adoption, so confirm the current production state with JC before following it.
 
@@ -101,7 +104,7 @@ Production's migration table also lists two earlier migrations whose source file
 |---|---|
 | Fresh local or Docker database | `npm run db:migrate` (`prisma migrate deploy`). The Docker entrypoint runs `prisma migrate deploy` and `prisma db seed` on every start |
 | New migration while developing | `npm run prisma:migrate` (`prisma migrate dev`) against a local database only, then commit the generated folder |
-| Seeding | `npm run db:seed`. `prisma/seed.js` seeds the 144 problems if none exist, then calls `prisma/seed-users.js`, which creates Braylee only if missing and reads the PIN from `SEED_BRAYLEE_PIN` (see [ARCHITECTURE.md](ARCHITECTURE.md#braylee-pin-login)) |
+| Seeding | `npm run db:seed`. `prisma/seed.js` seeds the 144 problems if none exist, then calls `prisma/seed-users.js`, which creates Braylee only if missing and reads the student ID from `SEED_BRAYLEE_PIN`, 5-8 digits (see [ARCHITECTURE.md](ARCHITECTURE.md#student-id-sign-in-braylee-and-saved-cadets)) |
 | Production | Never automatic. Migrations do not run on deploy. Run them by hand, before merging the code that needs them |
 
 ## Rules for adding migrations
@@ -120,5 +123,6 @@ Production's migration table also lists two earlier migrations whose source file
 
 | Script | Purpose |
 |---|---|
+| `npm run db:set-student-id` (`scripts/set-student-id.js`) | Sets or resets a named (non-guest) account's student ID: `-- --name Braylee`. Reads the ID from a hidden prompt or stdin, never argv; stores a plain bcrypt hash in `User.pin` and clears the lockout columns; prints only the number of rows updated. `--i-have-a-backup` is required for a non-localhost `DATABASE_URL` |
 | `npm run db:import-spelling` (`scripts/import-spelling.js`, `--dry-run` supported) | Load `docs/curriculum/spelling.json` into `SpellingWord` |
-| `npm run db:cleanup-accounts` (`scripts/cleanup-accounts.js`) | One-time cleanup for the "one real account plus guest seats" model: keeps `Braylee`, merges a few exact-name duplicates, deletes other non-guest users. Dry run by default (does everything, then rolls back); `--confirm` writes in one transaction, and `--i-have-a-backup` is required for a non-localhost `DATABASE_URL`. Destructive; read the file header and take a backup before running it against any real database |
+| `npm run db:cleanup-accounts` (`scripts/cleanup-accounts.js`) | One-time cleanup for the "one real account plus guest seats" model: keeps `Braylee`, merges a few exact-name duplicates, deletes other non-guest users. Refuses to run, even as a dry run, while any saved cadet exists unless `--include-saved-cadets` is passed (then they are deleted too). Dry run by default (does everything, then rolls back); `--confirm` writes in one transaction, and `--i-have-a-backup` is required for a non-localhost `DATABASE_URL`. Destructive; read the file header and take a backup before running it against any real database |

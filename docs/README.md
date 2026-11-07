@@ -5,7 +5,7 @@ Start with the [project README](../README.md) for what the app is and how to run
 | Page | One line |
 |---|---|
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Prerequisites, env files, local database, migrations, seeding, conventions, and how to add routes, modes and skills |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System overview: request flow, auth, guest seats, and module layout |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System overview: request flow, auth, guest seats, saved cadets, and module layout |
 | [API.md](API.md) | Every HTTP endpoint with request and response shapes |
 | [DATA-MODEL.md](DATA-MODEL.md) | Prisma models, relationships and migration history |
 | [GAMEPLAY.md](GAMEPLAY.md) | Game modes, level and mastery rules, unlocking, spelling |

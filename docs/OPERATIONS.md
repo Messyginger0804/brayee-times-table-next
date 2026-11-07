@@ -1,6 +1,6 @@
 # Operations
 
-How the app is deployed, configured, released and looked after. Written for the owner returning after a break and for a new contributor. No secrets, PINs or connection strings belong in this file; names of variables only.
+How the app is deployed, configured, released and looked after. Written for the owner returning after a break and for a new contributor. No secrets, student IDs or connection strings belong in this file; names of variables only.
 
 Related: [TESTING.md](TESTING.md), [KNOWN-ISSUES.md](KNOWN-ISSUES.md), [DEPLOY-RUNBOOK.md](DEPLOY-RUNBOOK.md) (one-time November 2026 adoption runbook).
 
@@ -45,23 +45,27 @@ Set in the host (Vercel project settings, or `.env.docker` locally). `env.exampl
 | Variable | Required | Used by | Meaning |
 |---|---|---|---|
 | `DATABASE_URL` | yes | Prisma (`schema.prisma`), all DB code | Postgres connection string. |
-| `NEXTAUTH_SECRET` | yes | next-auth (reads it from the environment), `middleware.js` | Signs and reads the session JWT. Without it logins do not work. |
+| `NEXTAUTH_SECRET` | yes | next-auth (reads it from the environment), `middleware.js`, `lib/pinAuth.js` | Signs and reads the session JWT. Without it logins do not work. It also derives the pepper for student-ID hashes (HKDF), so **rotating it signs everyone out and invalidates every student ID** (Braylee's must be reset with `npm run db:set-student-id`; saved cadets would have to save again). There is no separate pepper variable. |
 | `NEXTAUTH_URL` | yes on non-Vercel hosts | next-auth | Public base URL of the app (the docker stack and local dev set it). |
-| `CRON_SECRET` | yes in production | `/api/cron/purge-guests` | Bearer secret for the daily guest purge. If unset, the endpoint answers 401 to everyone. Vercel sends it automatically as `Authorization: Bearer <value>` when this variable exists in the project. |
+| `CRON_SECRET` | yes in production | `/api/cron/purge-guests` | Bearer secret for the daily guest and saved-cadet purge. If unset, the endpoint answers 401 to everyone. Vercel sends it automatically as `Authorization: Bearer <value>` when this variable exists in the project. |
 | `GUEST_SEATS` | no | `lib/guests.js` | Number of guest seats. Default 5, clamped to 1-100. Lowering it leaves higher seats unreachable, but they are still purged. |
 | `GUEST_MIN_IDLE_MINUTES` | no | `lib/guests.js` | Minutes a taken seat must be idle before a new device may take it over. Default 15. |
-| `SEED_BRAYLEE_PIN` | no | `prisma/seed-users.js` | Exactly 4 digits. Used only when the seed creates the `Braylee` row. If unset, a random PIN is generated and printed once. See [Seeding](#seeding-and-the-first-pin). |
+| `SAVED_CADETS_MAX` | no | `lib/savedCadetPurge.js`, `lib/savedCadets.js` | Maximum number of saved cadets (Braylee not counted). Default 10, clamped 0-500. |
+| `SAVED_CADET_RETENTION_DAYS` | no | `lib/savedCadetPurge.js` | Days without activity before a saved cadet is deleted with all their data. Default 30, clamped 1-3650. |
+| `SEED_BRAYLEE_PIN` | no | `prisma/seed-users.js` | Student ID of 5 to 8 digits. Used only when the seed creates the `Braylee` row. If unset, a random one is generated and printed once. See [Seeding](#seeding-and-the-first-pin). |
 | `VERCEL_PROJECT_PRODUCTION_URL` | provided by Vercel | `app/layout.jsx` | Used for the site metadata base URL. Do not set by hand. |
+| `VERCEL_ENV` | set by Vercel | `lib/pinAuth.js` | Old-format student-ID hashes are upgraded to the peppered format on sign-in only when this is `production`. |
+| `PIN_REHASH` | no, local testing only | `lib/pinAuth.js` | `1` lets a non-production process do that upgrade. Never set it against the production database. |
 | `NODE_ENV` | set by tooling | cookie `secure` flag | Guest cookie is `secure` only when `production`. |
 
 CI sets dummy values for `DATABASE_URL`, `NEXTAUTH_SECRET` and `NEXTAUTH_URL` in the build job so `next build` can run. Those are not real secrets.
 
-## Seeding and the first PIN
+## Seeding and the first student ID
 
-`prisma/seed-users.js` creates one real account, `Braylee`, with `upsert` and `update: {}`. Re-running the seed never changes an existing row, so it cannot overwrite a changed PIN. Guest seat rows are created lazily by the app on the first guest request, not by the seed.
+`prisma/seed-users.js` creates one real account, `Braylee`, with `upsert` and `update: {}`. Re-running the seed never changes an existing row, so it cannot overwrite a changed student ID. Guest seat rows are created lazily by the app on the first guest request, not by the seed.
 
-- The PIN comes from `SEED_BRAYLEE_PIN` (must be exactly 4 digits, otherwise the seed throws).
-- If `SEED_BRAYLEE_PIN` is unset and the row is being created, a random PIN is generated and printed once to the console. Save it then; it is stored only as a bcrypt hash.
+- The student ID comes from `SEED_BRAYLEE_PIN` (must be 5 to 8 digits, otherwise the seed throws; sign-in rejects anything else).
+- If `SEED_BRAYLEE_PIN` is unset and the row is being created, a random ID is generated and printed once to the console. Save it then; it is stored only as a bcrypt hash.
 - If the row already exists, nothing is printed and nothing changes.
 - The docker entrypoint runs `prisma migrate deploy` then `prisma db seed` on every container start, so the seed must stay idempotent.
 
@@ -86,7 +90,8 @@ Run database steps from a checkout of the release commit, in a shell where `DATA
    - Schema matches the code: `npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script` prints `-- This is an empty migration.`
 6. **Merge to `main`.** Vercel builds and deploys.
 7. **Smoke test** the live site:
-   - Braylee logs in with her PIN.
+   - Braylee signs in with her name and Student ID.
+   - A guest can save a cadet and sign back in as that cadet.
    - "Play as Guest" gives a cadet seat.
    - `/api/cron/purge-guests` answers 401 without the bearer secret.
    - Open one math mission and one spelling round.
@@ -95,7 +100,7 @@ If the code is deployed before its migrations, the API answers HTTP 503 with `{"
 
 Never use `prisma db push`, `prisma migrate dev` or `prisma migrate reset` against production.
 
-Note for the persisted-unlocks release (`20260701000000_add_skill_unlock`): it only adds the `SkillUnlock` table, so the steps above apply unchanged. Expect `SkillUnlock` to be empty after step 4; rows appear as players open their mission map (the first load backfills every mission that is open at that moment). Run the migration before the deploy. If the code ships first, `GET /api/curriculum/me` degrades to the old unlock behaviour (it treats the missing `SkillUnlock` table as empty and writes nothing) instead of failing, but missions can still re-lock until the migration is applied.
+Note for the persisted-unlocks release (`20260801000000_add_skill_unlock`): it only adds the `SkillUnlock` table, so the steps above apply unchanged. Expect `SkillUnlock` to be empty after step 4; rows appear as players open their mission map (the first load backfills every mission that is open at that moment). Run the migration before the deploy. If the code ships first, `GET /api/curriculum/me` degrades to the old unlock behaviour (it treats the missing `SkillUnlock` table as empty and writes nothing) instead of failing, but missions can still re-lock until the migration is applied.
 
 ### Rollback
 
@@ -110,10 +115,10 @@ Note for the persisted-unlocks release (`20260701000000_add_skill_unlock`): it o
 | Path | `GET /api/cron/purge-guests` |
 | Schedule | `0 4 * * *` (daily at 04:00 UTC, set in `vercel.json`) |
 | Auth | `Authorization: Bearer <CRON_SECRET>`, compared in constant time. Missing secret or wrong header gives 401. |
-| Effect | Wipes guest seats idle for more than 7 days (progress rows deleted, token cleared). Returns `{"purged": <count>}`. |
+| Effect | Wipes guest seats idle for more than 7 days (progress rows deleted, token cleared) and deletes saved cadets idle for more than `SAVED_CADET_RETENTION_DAYS`, with all their data (never Braylee). Returns `{"purged": <count>, "purgedSaved": <count>}`. |
 | Schema missing | 503 maintenance response. |
 
-Guest seats are also purged lazily on guest requests (a failing lazy purge is logged and never breaks the request), so the cron is a backstop.
+Guest seats and saved cadets are also purged lazily on requests (a failing lazy purge is logged and never breaks the request), so the cron is a backstop.
 
 ### Purging guests manually
 
@@ -123,32 +128,29 @@ The same endpoint works against any running instance. Do not paste the secret in
 curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3300/api/cron/purge-guests
 ```
 
-Use the production URL only when you intend to purge production. This only removes seats idle for more than 7 days; it cannot wipe an active seat.
+Use the production URL only when you intend to purge production. This only removes seats idle for more than 7 days and saved cadets idle past the retention period; it cannot wipe an active seat or cadet.
 
 ## Owner procedures
 
 All SQL below is run with `psql "$DATABASE_URL"` against the intended database. Double-check which database that is first.
 
-### Rotate Braylee's PIN
+### Set or reset a student ID (`npm run db:set-student-id`)
 
-PINs are exactly 4 digits and stored as a bcrypt hash in `User.pin`. Never put the PIN in a command line argument, file or chat.
+Student IDs are 5 to 8 digits and stored only as bcrypt hashes in `User.pin`. Use the script; never put the ID in a command line argument, file, ticket or chat.
 
-1. Read the new PIN into an environment variable without echoing it: `read -rs NEWPIN; export NEWPIN`
-2. Hash it: `HASH=$(node -e "console.log(require('bcryptjs').hashSync(process.env.NEWPIN, 10))")` (run from the repo root so `bcryptjs` resolves).
-3. Update the row, passing the hash as a psql variable on stdin:
-   ```
-   psql "$DATABASE_URL" -v hash="$HASH" <<'SQL'
-   UPDATE "User"
-   SET pin = :'hash', "failedLoginAttempts" = 0, "lockedUntil" = NULL
-   WHERE name = 'Braylee';
-   SQL
-   ```
-   It should report `UPDATE 1`.
-4. `unset NEWPIN HASH`, then log in with the new PIN to confirm.
+```
+npm run db:set-student-id -- --name Braylee
+```
+
+- It reads the ID from a hidden prompt (or from stdin when piped; never from argv), checks it is 5-8 digits, stores a plain bcrypt hash of it in `User.pin` and clears `failedLoginAttempts` / `lockedUntil` in the same update. The only output is `updated N row(s)`; expect 1 (exit code 1 otherwise).
+- It only touches a non-guest row with exactly that name.
+- Against a non-localhost `DATABASE_URL` it refuses to run unless you add `--i-have-a-backup`. Never point it at the docker `db` or production unless that is the intent.
+- Production upgrades the plain hash to the peppered one on the first successful sign-in, so there is nothing more to do. A non-production process only verifies.
+- Use it after rotating `NEXTAUTH_SECRET`, after the 5-8 digit change (old 4-digit PINs stop working), or when Braylee forgets her ID. A saved cadet who forgets theirs has no reset path other than this script with their nickname.
 
 ### Unlock a locked-out account
 
-After 5 wrong PINs in a row the account rests: 5-9 wrong = 1 minute, 10-14 = 5 minutes, 15 or more = 30 minutes, re-applied on every further wrong PIN. A correct PIN resets the counter, but is refused while resting. To clear it immediately:
+After 5 wrong student IDs in a row the account rests: 5-9 wrong = 1 minute, 10-14 = 5 minutes, 15-19 = 30 minutes, 20-24 = 2 hours, 25 or more = 24 hours, re-applied on every further wrong try. A correct ID resets the counter, but is refused while resting. The player sees the same "That didn't work..." message as for any wrong sign-in. To clear it immediately (use the saved cadet's nickname instead of `Braylee` for a saved cadet):
 
 ```
 UPDATE "User"
@@ -156,11 +158,11 @@ SET "failedLoginAttempts" = 0, "lockedUntil" = NULL
 WHERE name = 'Braylee';
 ```
 
-If this keeps happening with no one at the keyboard, someone may be guessing PINs. See "Account lockout can be triggered by anyone" in [KNOWN-ISSUES.md](KNOWN-ISSUES.md).
+If this keeps happening with no one at the keyboard, someone may be guessing student IDs. See "Account lockout can be triggered by anyone" in [KNOWN-ISSUES.md](KNOWN-ISSUES.md).
 
 ### Account cleanup script
 
-`npm run db:cleanup-accounts` is the one-time script from the account-model change. It keeps `Braylee`, merges a fixed list of her alternate accounts into it, and deletes every other non-guest user (the merged accounts' `SkillUnlock` rows are unioned into Braylee's first). Default is a dry run that rolls back; `--confirm` writes in one transaction; a non-localhost `DATABASE_URL` requires `--i-have-a-backup`. Do not run it again unless you know why. Its output lists real user names, so keep it out of public places.
+`npm run db:cleanup-accounts` is the one-time script from the account-model change. It keeps `Braylee`, merges a fixed list of her alternate accounts into it, and deletes every other non-guest user (the merged accounts' `SkillUnlock` rows are unioned into Braylee's first). It refuses to run, even as a dry run, while any saved cadet exists unless `--include-saved-cadets` is passed (then they are deleted too). Default is a dry run that rolls back; `--confirm` writes in one transaction; a non-localhost `DATABASE_URL` requires `--i-have-a-backup`. Do not run it again unless you know why. Its output lists real user names, so keep it out of public places.
 
 ## Backups and restore
 
@@ -201,7 +203,7 @@ On every start the container entrypoint runs `npx prisma migrate deploy`, `npx p
 | Symptom | Likely cause | Action |
 |---|---|---|
 | Pages or APIs return 503 "The game is getting an upgrade" | Code deployed before migrations | Run release steps 4 and 5. |
-| Braylee gets "Let's take a short break" | Lockout | Wait, or unlock with the SQL above. |
+| Sign-in says "That didn't work..." although the ID is right | Wrong name, or the account is resting after repeated wrong tries (both look the same) | Check the name, wait, or unlock with the SQL above. |
 | Kids see "All seats are busy" | All guest seats taken and none idle for `GUEST_MIN_IDLE_MINUTES` | Wait, or raise `GUEST_SEATS`. |
 | Cron returns 401 | `CRON_SECRET` unset or mismatched | Set it in the Vercel project, then redeploy. |
 | Branch pushed but no Vercel build | Expected: only `main` builds | Merge, or run a CLI deploy (no git ref, not skipped). |

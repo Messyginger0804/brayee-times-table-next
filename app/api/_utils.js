@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../lib/auth';
 import { NextResponse } from 'next/server';
 import { validateGuestSession } from '../../lib/guests';
+import { validateSavedSession } from '../../lib/savedCadetPurge';
 
 /** The signed-in caller as { id, gk }: gk is the guest seat key (null for real accounts). Null when not signed in or the seat is gone. */
 async function getActor() {
@@ -12,6 +13,8 @@ async function getActor() {
   // Guest sessions carry the seat key. Every guest request lazily purges idle seats, checks the seat still belongs to
   // this device (not rotated/wiped), and refreshes lastActiveAt (throttled).
   if (session.user.gk && !(await validateGuestSession(id, session.user.gk))) return null;
+  // Saved cadets (session.user.sc): the row must still exist (idle ones are deleted); refreshes lastActiveAt, throttled.
+  if (session.user.sc && !(await validateSavedSession(id))) return null;
   return { id, gk: session.user.gk || null };
 }
 

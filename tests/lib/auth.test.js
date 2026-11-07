@@ -21,16 +21,18 @@ beforeEach(() => vi.clearAllMocks());
 describe('PIN provider authorize', () => {
   it('returns a minimal user (string id, no pin) on success', async () => {
     verifyPin.mockResolvedValue({ ok: true, user: { id: 5, name: 'K', image: 'i', pin: 'HASH', level: 2 } });
-    expect(await pinAuthorize({ name: 'K', pin: '1234' })).toEqual({ id: '5', name: 'K', image: 'i' });
-    expect(verifyPin).toHaveBeenCalledWith('K', '1234', { ip: 'unknown' });
+    expect(await pinAuthorize({ name: 'K', pin: '12345' })).toEqual({ id: '5', name: 'K', image: 'i', sc: false });
+    verifyPin.mockResolvedValue({ ok: true, user: { id: 6, name: 'Luna', image: null, pin: 'HASH', savedCadet: true } });
+    expect(await pinAuthorize({ name: 'Luna', pin: '24680' })).toEqual({ id: '6', name: 'Luna', image: null, sc: true });
+    expect(verifyPin).toHaveBeenCalledWith('K', '12345', { ip: 'unknown' });
   });
   it('null for ordinary failures', async () => {
-    verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'Invalid name or PIN' });
-    expect(await pinAuthorize({ name: 'K', pin: '0000' })).toBeNull();
+    verifyPin.mockResolvedValue({ ok: false, status: 401, error: 'bad credentials' });
+    expect(await pinAuthorize({ name: 'K', pin: '00000' })).toBeNull();
   });
   it('surfaces the friendly cooldown message by throwing on 429', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 429, error: 'take a break' });
-    await expect(pinAuthorize({ name: 'K', pin: '1234' })).rejects.toThrow('take a break');
+    await expect(pinAuthorize({ name: 'K', pin: '12345' })).rejects.toThrow('take a break');
   });
   it('passes undefined through when credentials are missing', async () => {
     verifyPin.mockResolvedValue({ ok: false, status: 400, error: 'x' });
@@ -70,8 +72,9 @@ describe('guest provider authorize', () => {
 describe('callbacks', () => {
   const { jwt, session } = authOptions.callbacks;
   it('jwt copies id and guest key on sign-in; plain users get gk null', async () => {
-    expect(await jwt({ token: {}, user: { id: '3' } })).toEqual({ id: '3', gk: null });
-    expect(await jwt({ token: {}, user: { id: '3', gk: 'h' } })).toEqual({ id: '3', gk: 'h' });
+    expect(await jwt({ token: {}, user: { id: '3' } })).toEqual({ id: '3', gk: null, sc: false });
+    expect(await jwt({ token: {}, user: { id: '3', gk: 'h' } })).toEqual({ id: '3', gk: 'h', sc: false });
+    expect(await jwt({ token: {}, user: { id: '3', sc: true } })).toEqual({ id: '3', gk: null, sc: true });
   });
   it('jwt leaves the token alone on later requests (no user)', async () => {
     const t = { id: '3', gk: 'h' };
@@ -81,6 +84,7 @@ describe('callbacks', () => {
   it('session exposes id and gk only when present on the token', async () => {
     expect(await session({ session: { user: {} }, token: { id: '3', gk: 'h' } })).toEqual({ user: { id: '3', gk: 'h' } });
     expect(await session({ session: { user: {} }, token: { id: '3' } })).toEqual({ user: { id: '3' } });
+    expect(await session({ session: { user: {} }, token: { id: '3', sc: true } })).toEqual({ user: { id: '3', sc: true } });
     expect(await session({ session: { user: {} }, token: {} })).toEqual({ user: {} });
     expect(await session({ session: { user: {} }, token: undefined })).toEqual({ user: {} });
   });
