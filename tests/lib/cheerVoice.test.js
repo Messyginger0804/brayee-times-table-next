@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { speakCheer, speakBigCheer, speakSpelling, setMuted, isMuted, pickVoice, resetCheerVoice, CHEER_GAP_MS, CHEER_SETTLE_MS, MUTE_KEY } from '../../lib/cheerVoice';
+import { speakCheer, speakBigCheer, speakSpelling, stopCheers, setMuted, isMuted, pickVoice, resetCheerVoice, CHEER_GAP_MS, CHEER_SETTLE_MS, MUTE_KEY } from '../../lib/cheerVoice';
 
 let synth;
 let spoken;
@@ -179,5 +179,97 @@ describe('pickVoice', () => {
     expect(pickVoice([{ name: 'X', lang: 'en-AU' }]).name).toBe('X');
     expect(pickVoice([{ name: 'Hans', lang: 'de-DE' }])).toBeNull();
     expect(pickVoice()).toBeNull();
+  });
+});
+
+describe('pre-generated clips', () => {
+  let audios;
+  let playResult;
+  beforeEach(() => {
+    audios = [];
+    playResult = () => Promise.resolve();
+    vi.stubGlobal('Audio', function FakeAudio(url) {
+      this.url = url;
+      this.paused = true;
+      this.ended = false;
+      this.pause = vi.fn(() => { this.paused = true; });
+      this.play = vi.fn(() => { this.paused = false; return playResult(); });
+      audios.push(this);
+    });
+  });
+  const flushAsync = async () => { await Promise.resolve(); await Promise.resolve(); };
+
+  it('plays the clip instead of speaking when the line has one', () => {
+    speakCheer('Great job! 🚀'); flush();
+    expect(audios).toHaveLength(1);
+    expect(audios[0].url).toBe('/audio/braylee/great-job.mp3');
+    expect(audios[0].play).toHaveBeenCalled();
+    expect(synth.speak).not.toHaveBeenCalled();
+  });
+  it('speaks lines without a clip, and instructions never use a clip', () => {
+    speakCheer('7 in a row!'); flush();
+    expect(audios).toHaveLength(0);
+    expect(spoken.map((u) => u.text)).toEqual(['7 in a row!']);
+    speakSpelling('Great job!');
+    expect(audios).toHaveLength(0);
+  });
+  it('works when speechSynthesis is unavailable but Audio exists', () => {
+    vi.stubGlobal('window', {});
+    speakCheer('Woohoo!'); flush();
+    expect(audios).toHaveLength(1);
+  });
+  it('falls back to speech when play() is rejected', async () => {
+    playResult = () => Promise.reject(new Error('NotAllowedError'));
+    speakCheer('Great job!'); flush();
+    await flushAsync();
+    expect(spoken.map((u) => u.text)).toEqual(['Great job!']);
+  });
+  it('falls back to speech once on a load error (404), then skips the clip for that line', () => {
+    speakCheer('Great job!'); flush();
+    audios[0].onerror(); audios[0].onerror();
+    expect(spoken.map((u) => u.text)).toEqual(['Great job!']);
+    finish();
+    vi.advanceTimersByTime(CHEER_GAP_MS);
+    speakCheer('Great job!'); flush();
+    expect(audios).toHaveLength(1);
+    expect(spoken).toHaveLength(2);
+  });
+  it('does not play or speak while muted, and muting stops a playing clip without a fallback', () => {
+    setMuted(true);
+    speakCheer('Great job!'); flush();
+    expect(audios).toHaveLength(0);
+    setMuted(false);
+    speakCheer('Great job!'); flush();
+    expect(audios).toHaveLength(1);
+    setMuted(true);
+    expect(audios[0].pause).toHaveBeenCalled();
+    expect(synth.speak).not.toHaveBeenCalled();
+  });
+  it('a big cheer stops the previous clip and starts its own', () => {
+    speakCheer('Great job!'); flush();
+    speakBigCheer('Mission complete! 🚀'); flush();
+    expect(audios[0].pause).toHaveBeenCalled();
+    expect(audios[1].url).toBe('/audio/braylee/mission-complete.mp3');
+  });
+  it('does not start an ordinary cheer over a playing clip', () => {
+    speakCheer('Great job!'); flush();
+    vi.advanceTimersByTime(CHEER_GAP_MS + 100);
+    speakCheer('Woohoo!'); flush();
+    expect(audios).toHaveLength(1);
+  });
+  it('spelling speech stops a playing clip and its late error does not speak', () => {
+    speakCheer('Great job!'); flush();
+    speakSpelling('because');
+    expect(audios[0].pause).toHaveBeenCalled();
+    expect(audios[0].onerror).toBeNull();
+  });
+  it('stopCheers stops the clip, pending cheers and speech', () => {
+    speakCheer('Great job!'); flush();
+    speakCheer('Woohoo!');
+    stopCheers();
+    expect(audios[0].pause).toHaveBeenCalled();
+    expect(synth.cancel).toHaveBeenCalled();
+    flush();
+    expect(audios).toHaveLength(1);
   });
 });
