@@ -1,6 +1,7 @@
 "use client";
 import Button from './ui/Button';
 import AstronautHelmet from './space/AstronautHelmet';
+import VoiceSettings from './VoiceSettings';
 import SignOutButton from './SignOutButton';
 import { useCheerMuted } from '../lib/cheerVoice';
 
@@ -25,6 +26,7 @@ function Header({ onReset, userName, menuLabel = 'Menu', photo = false }) {
         <Button tone="ghost" size="sm" onClick={() => setMuted(!muted)} aria-pressed={!muted} aria-label="Braylee's voice" title={muted ? "Turn Braylee's voice on" : "Turn Braylee's voice off"}>
           <span aria-hidden="true">{muted ? '🔇' : '🔊'}</span>
         </Button>
+        <VoiceSettings />
         <Button tone="ghost" size="sm" onClick={onReset} aria-label="Back to main menu">
           <span aria-hidden="true">🏠</span> {menuLabel}
         </Button>
