@@ -12,6 +12,7 @@ Full reference: [../DATA-MODEL.md](../DATA-MODEL.md). Schema: `prisma/schema.pri
 ## Migrations
 Checked in under `prisma/migrations/`: init (2025), a baseline of the production schema, then grade and math progress, math unlocked by parent, guest seats, saved cadets, skill unlock. Rules:
 - Create with `npm run prisma:migrate` against a local DB only; apply with `npm run db:migrate`. Never `db push`.
+- The Prisma CLI reads `.env` and shell variables, not `.env.docker`. Export `DATABASE_URL` for the local database (host `localhost`, port `55436`, not the Compose host `db`) or put it in `.env` before running `npm run prisma:migrate` or `npm run db:migrate`.
 - Keep new migration folder timestamps strictly increasing.
 - When code depends on a new table or column, add it to the lists in `lib/dbErrors.js` so deploys that land before the migration show maintenance instead of a 500.
 - Seeds (`prisma/seed.js`, `prisma/seed-users.js`) are idempotent and never overwrite an existing user or student ID. The spelling word list is loaded by `npm run db:import-spelling` from `docs/curriculum/spelling.json`.

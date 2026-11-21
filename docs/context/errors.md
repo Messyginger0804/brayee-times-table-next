@@ -9,5 +9,5 @@ Entries go newest first.
 
 ## Cron endpoint returns 401
 - Cause: `CRON_SECRET` unset or mismatched.
-- Fix: set `CRON_SECRET` in the hosting project and redeploy.
+- Fix: set `CRON_SECRET` in the hosting project and redeploy. A manual caller must also send `Authorization: Bearer <CRON_SECRET>` with the currently configured value; an old token still returns 401.
 - Date: 2026-11-07

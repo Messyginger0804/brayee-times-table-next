@@ -21,8 +21,8 @@ Next.js 14 App Router, plain JS/JSX, Prisma 5 on PostgreSQL, next-auth 4 with JW
 Three kinds of player: Braylee (student ID sign-in, escalating lockout), guest seats (cookie-based, seats numbered, wiped after 7 idle days), saved cadets (a guest who keeps progress under a nickname plus student ID, purged after 30 idle days by default). Student IDs are exactly 7 digits and are HMAC-peppered using a key derived from `NEXTAUTH_SECRET`.
 
 ## Rules worth knowing
-- Any write keyed to a user goes through `guestSafe` in `lib/guestWrite.js`, so a seat that was reassigned cannot write.
-- Every DB-touching route exports `dynamic = 'force-dynamic'`.
+- Guest-session writes keyed to a user go through `guestSafe` in `lib/guestWrite.js`, so a seat that was reassigned cannot write. Exception: `recordSuccess` in `lib/pinAuth.js` (sign-in bookkeeping) updates the user directly by ID.
+- DB-touching API routes export `dynamic = 'force-dynamic'`. Exception: the NextAuth route `app/api/auth/[...nextauth]/route.js` does not, although credentials sign-in writes to the database (via `verifyPin` and `recordSuccess`).
 - Routes that depend on newer migrations opt in to `maintenanceResponse` (503 with `maintenance: true`) from `lib/dbErrors.js`. Add new tables and columns to the lists there when a migration adds something code needs.
 - The in-memory rate limiter is per server instance and best effort; the lockout in `lib/pinAuth.js` is the real protection.
 - Speech uses the browser engine plus pre-generated clips; no paid or metered APIs in app code or tests.

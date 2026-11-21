@@ -13,8 +13,8 @@ Authoritative runbooks: [../OPERATIONS.md](../OPERATIONS.md) and [../DEPLOY-RUNB
 
 ## Release order (summary)
 1. Branch, change, test locally with Docker.
-2. Merge to main after CI passes.
-3. Owner takes a backup, applies migrations, confirms the deploy (see the runbook).
+2. Owner takes a backup and applies required backward-compatible migrations before merging (merging to main starts the deploy). Use a staged release for incompatible migrations (see the runbook).
+3. Merge to main after CI passes, then the owner confirms the deploy.
 
 ## Operational limits to remember
 - Rate limits are in memory, per instance. Lockout tiers: 5 wrong IDs = 1 minute up to 24 hours at 25 or more.
