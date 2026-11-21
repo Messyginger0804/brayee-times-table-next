@@ -22,7 +22,7 @@ Core: `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`. Seeding: `SEED_BRAYLEE_
 
 ## Tests
 - Under `tests/` (api, lib, curriculum, component tests with jsdom). API tests mock Prisma; see `tests/api/helpers.js`.
-- `*.pg.test.js` files need a local migrated Postgres via `TEST_DATABASE_URL` and are skipped when unset. Those tests write rows, so the URL must be a local database. `DATABASE_URL` must have the same value as `TEST_DATABASE_URL`, otherwise the persisted mission-unlock tests are skipped.
+- `*.pg.test.js` files need a local migrated Postgres via `TEST_DATABASE_URL` and are skipped when unset. Those tests write rows and run `purgeInactiveSaved`, which deletes every expired saved cadet and their progress, including rows the tests did not create, so the URL must point at a separate, disposable local database, never one holding data you want to keep. The tests also read the first `Problem` row, and migrations insert none: on a migrated database run `npm run db:seed` (with `DATABASE_URL` set to that database) after `npm run db:migrate`. The Compose entrypoint seeds only the Compose database. `DATABASE_URL` must have the same value as `TEST_DATABASE_URL`, otherwise the persisted mission-unlock tests are skipped.
 - Bcrypt-heavy sign-in tests have extended timeouts for slow CI runners.
 
 ## Conventions
